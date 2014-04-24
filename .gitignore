@@ -1,2 +1,10 @@
 *.o
 rawhid/rawhid_test
+.dep
+*.eep
+*.elf
+*.hex
+*.lss
+*.lst
+*.map
+*.sym
