@@ -1,0 +1,610 @@
+   1               		.file	"example.c"
+   2               	__SP_H__ = 0x3e
+   3               	__SP_L__ = 0x3d
+   4               	__SREG__ = 0x3f
+   5               	__tmp_reg__ = 0
+   6               	__zero_reg__ = 1
+   7               		.text
+   8               	.Ltext0:
+   9               		.cfi_sections	.debug_frame
+  10               		.section	.text.startup.main,"ax",@progbits
+  11               	.global	main
+  13               	main:
+  14               	.LFB7:
+  15               		.file 1 "example.c"
+   1:example.c     **** /* Teensy RawHID example
+   2:example.c     ****  * http://www.pjrc.com/teensy/rawhid.html
+   3:example.c     ****  * Copyright (c) 2009 PJRC.COM, LLC
+   4:example.c     ****  * 
+   5:example.c     ****  * Permission is hereby granted, free of charge, to any person obtaining a copy
+   6:example.c     ****  * of this software and associated documentation files (the "Software"), to deal
+   7:example.c     ****  * in the Software without restriction, including without limitation the rights
+   8:example.c     ****  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+   9:example.c     ****  * copies of the Software, and to permit persons to whom the Software is
+  10:example.c     ****  * furnished to do so, subject to the following conditions:
+  11:example.c     ****  * 
+  12:example.c     ****  * The above description, website URL and copyright notice and this permission
+  13:example.c     ****  * notice shall be included in all copies or substantial portions of the Software.
+  14:example.c     ****  * 
+  15:example.c     ****  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  16:example.c     ****  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  17:example.c     ****  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  18:example.c     ****  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  19:example.c     ****  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  20:example.c     ****  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+  21:example.c     ****  * THE SOFTWARE.
+  22:example.c     ****  */
+  23:example.c     **** 
+  24:example.c     **** #include <avr/io.h>
+  25:example.c     **** #include <avr/pgmspace.h>
+  26:example.c     **** #include <avr/interrupt.h>
+  27:example.c     **** #include <util/delay.h>
+  28:example.c     **** #include "usb_rawhid_debug.h"
+  29:example.c     **** #include "print.h"
+  30:example.c     **** #include "analog.h"
+  31:example.c     **** 
+  32:example.c     **** #define CPU_PRESCALE(n)	(CLKPR = 0x80, CLKPR = (n))
+  33:example.c     **** 
+  34:example.c     **** volatile uint8_t do_output=0;
+  35:example.c     **** uint8_t buffer[64];
+  36:example.c     **** 
+  37:example.c     **** int main(void)
+  38:example.c     **** {
+  16               		.loc 1 38 0
+  17               		.cfi_startproc
+  18               	/* prologue: function */
+  19               	/* frame size = 0 */
+  20               	/* stack size = 0 */
+  21               	.L__stack_usage = 0
+  22               	.LVL0:
+  39:example.c     **** 	int8_t r;
+  40:example.c     **** 	uint8_t i;
+  41:example.c     **** 	uint16_t val, count=0;
+  42:example.c     **** 
+  43:example.c     **** 	// set for 16 MHz clock
+  44:example.c     **** 	CPU_PRESCALE(0);
+  23               		.loc 1 44 0
+  24 0000 80E8      		ldi r24,lo8(-128)
+  25 0002 8093 6100 		sts 97,r24
+  26 0006 1092 6100 		sts 97,__zero_reg__
+  45:example.c     **** 
+  46:example.c     **** 	// Initialize the USB, and then wait for the host to set configuration.
+  47:example.c     **** 	// If the Teensy is powered without a PC connected to the USB port,
+  48:example.c     **** 	// this will wait forever.
+  49:example.c     **** 	usb_init();
+  27               		.loc 1 49 0
+  28 000a 0E94 0000 		call usb_init
+  29               	.LVL1:
+  30               	.L3:
+  50:example.c     **** 	while (!usb_configured()) /* wait */ ;
+  31               		.loc 1 50 0 discriminator 1
+  32 000e 0E94 0000 		call usb_configured
+  33               	.LVL2:
+  34 0012 8823      		tst r24
+  35 0014 01F0      		breq .L3
+  36               	.LVL3:
+  37               	.LBB10:
+  38               	.LBB11:
+  39               		.file 2 "/usr/avr/include/util/delay.h"
+   1:/usr/avr/include/util/delay.h **** /* Copyright (c) 2002, Marek Michalkiewicz
+   2:/usr/avr/include/util/delay.h ****    Copyright (c) 2004,2005,2007 Joerg Wunsch
+   3:/usr/avr/include/util/delay.h ****    Copyright (c) 2007  Florin-Viorel Petrov
+   4:/usr/avr/include/util/delay.h ****    All rights reserved.
+   5:/usr/avr/include/util/delay.h **** 
+   6:/usr/avr/include/util/delay.h ****    Redistribution and use in source and binary forms, with or without
+   7:/usr/avr/include/util/delay.h ****    modification, are permitted provided that the following conditions are met:
+   8:/usr/avr/include/util/delay.h **** 
+   9:/usr/avr/include/util/delay.h ****    * Redistributions of source code must retain the above copyright
+  10:/usr/avr/include/util/delay.h ****      notice, this list of conditions and the following disclaimer.
+  11:/usr/avr/include/util/delay.h **** 
+  12:/usr/avr/include/util/delay.h ****    * Redistributions in binary form must reproduce the above copyright
+  13:/usr/avr/include/util/delay.h ****      notice, this list of conditions and the following disclaimer in
+  14:/usr/avr/include/util/delay.h ****      the documentation and/or other materials provided with the
+  15:/usr/avr/include/util/delay.h ****      distribution.
+  16:/usr/avr/include/util/delay.h **** 
+  17:/usr/avr/include/util/delay.h ****    * Neither the name of the copyright holders nor the names of
+  18:/usr/avr/include/util/delay.h ****      contributors may be used to endorse or promote products derived
+  19:/usr/avr/include/util/delay.h ****      from this software without specific prior written permission.
+  20:/usr/avr/include/util/delay.h **** 
+  21:/usr/avr/include/util/delay.h ****   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+  22:/usr/avr/include/util/delay.h ****   AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+  23:/usr/avr/include/util/delay.h ****   IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+  24:/usr/avr/include/util/delay.h ****   ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+  25:/usr/avr/include/util/delay.h ****   LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+  26:/usr/avr/include/util/delay.h ****   CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+  27:/usr/avr/include/util/delay.h ****   SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+  28:/usr/avr/include/util/delay.h ****   INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+  29:/usr/avr/include/util/delay.h ****   CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+  30:/usr/avr/include/util/delay.h ****   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+  31:/usr/avr/include/util/delay.h ****   POSSIBILITY OF SUCH DAMAGE. */
+  32:/usr/avr/include/util/delay.h **** 
+  33:/usr/avr/include/util/delay.h **** /* $Id: delay.h.in 2251 2011-09-14 08:20:33Z joerg_wunsch $ */
+  34:/usr/avr/include/util/delay.h **** 
+  35:/usr/avr/include/util/delay.h **** #ifndef _UTIL_DELAY_H_
+  36:/usr/avr/include/util/delay.h **** #define _UTIL_DELAY_H_ 1
+  37:/usr/avr/include/util/delay.h **** 
+  38:/usr/avr/include/util/delay.h **** #ifndef __HAS_DELAY_CYCLES
+  39:/usr/avr/include/util/delay.h **** #define __HAS_DELAY_CYCLES 1
+  40:/usr/avr/include/util/delay.h **** #endif
+  41:/usr/avr/include/util/delay.h **** 
+  42:/usr/avr/include/util/delay.h **** #include <inttypes.h>
+  43:/usr/avr/include/util/delay.h **** #include <util/delay_basic.h>
+  44:/usr/avr/include/util/delay.h **** #include <math.h>
+  45:/usr/avr/include/util/delay.h **** 
+  46:/usr/avr/include/util/delay.h **** /** \file */
+  47:/usr/avr/include/util/delay.h **** /** \defgroup util_delay <util/delay.h>: Convenience functions for busy-wait delay loops
+  48:/usr/avr/include/util/delay.h ****     \code
+  49:/usr/avr/include/util/delay.h ****     #define F_CPU 1000000UL  // 1 MHz
+  50:/usr/avr/include/util/delay.h ****     //#define F_CPU 14.7456E6
+  51:/usr/avr/include/util/delay.h ****     #include <util/delay.h>
+  52:/usr/avr/include/util/delay.h ****     \endcode
+  53:/usr/avr/include/util/delay.h **** 
+  54:/usr/avr/include/util/delay.h ****     \note As an alternative method, it is possible to pass the
+  55:/usr/avr/include/util/delay.h ****     F_CPU macro down to the compiler from the Makefile.
+  56:/usr/avr/include/util/delay.h ****     Obviously, in that case, no \c \#define statement should be
+  57:/usr/avr/include/util/delay.h ****     used.
+  58:/usr/avr/include/util/delay.h **** 
+  59:/usr/avr/include/util/delay.h ****     The functions in this header file are wrappers around the basic
+  60:/usr/avr/include/util/delay.h ****     busy-wait functions from <util/delay_basic.h>.  They are meant as
+  61:/usr/avr/include/util/delay.h ****     convenience functions where actual time values can be specified
+  62:/usr/avr/include/util/delay.h ****     rather than a number of cycles to wait for.  The idea behind is
+  63:/usr/avr/include/util/delay.h ****     that compile-time constant expressions will be eliminated by
+  64:/usr/avr/include/util/delay.h ****     compiler optimization so floating-point expressions can be used
+  65:/usr/avr/include/util/delay.h ****     to calculate the number of delay cycles needed based on the CPU
+  66:/usr/avr/include/util/delay.h ****     frequency passed by the macro F_CPU.
+  67:/usr/avr/include/util/delay.h **** 
+  68:/usr/avr/include/util/delay.h ****     \note In order for these functions to work as intended, compiler
+  69:/usr/avr/include/util/delay.h ****     optimizations <em>must</em> be enabled, and the delay time
+  70:/usr/avr/include/util/delay.h ****     <em>must</em> be an expression that is a known constant at
+  71:/usr/avr/include/util/delay.h ****     compile-time.  If these requirements are not met, the resulting
+  72:/usr/avr/include/util/delay.h ****     delay will be much longer (and basically unpredictable), and
+  73:/usr/avr/include/util/delay.h ****     applications that otherwise do not use floating-point calculations
+  74:/usr/avr/include/util/delay.h ****     will experience severe code bloat by the floating-point library
+  75:/usr/avr/include/util/delay.h ****     routines linked into the application.
+  76:/usr/avr/include/util/delay.h **** 
+  77:/usr/avr/include/util/delay.h ****     The functions available allow the specification of microsecond, and
+  78:/usr/avr/include/util/delay.h ****     millisecond delays directly, using the application-supplied macro
+  79:/usr/avr/include/util/delay.h ****     F_CPU as the CPU clock frequency (in Hertz).
+  80:/usr/avr/include/util/delay.h **** 
+  81:/usr/avr/include/util/delay.h **** */
+  82:/usr/avr/include/util/delay.h **** 
+  83:/usr/avr/include/util/delay.h **** #if !defined(__DOXYGEN__)
+  84:/usr/avr/include/util/delay.h **** static inline void _delay_us(double __us) __attribute__((always_inline));
+  85:/usr/avr/include/util/delay.h **** static inline void _delay_ms(double __ms) __attribute__((always_inline));
+  86:/usr/avr/include/util/delay.h **** #endif
+  87:/usr/avr/include/util/delay.h **** 
+  88:/usr/avr/include/util/delay.h **** #ifndef F_CPU
+  89:/usr/avr/include/util/delay.h **** /* prevent compiler error by supplying a default */
+  90:/usr/avr/include/util/delay.h **** # warning "F_CPU not defined for <util/delay.h>"
+  91:/usr/avr/include/util/delay.h **** # define F_CPU 1000000UL
+  92:/usr/avr/include/util/delay.h **** #endif
+  93:/usr/avr/include/util/delay.h **** 
+  94:/usr/avr/include/util/delay.h **** #ifndef __OPTIMIZE__
+  95:/usr/avr/include/util/delay.h **** # warning "Compiler optimizations disabled; functions from <util/delay.h> won't work as designed"
+  96:/usr/avr/include/util/delay.h **** #endif
+  97:/usr/avr/include/util/delay.h **** 
+  98:/usr/avr/include/util/delay.h **** #if __HAS_DELAY_CYCLES && defined(__OPTIMIZE__) && \
+  99:/usr/avr/include/util/delay.h ****   !defined(__DELAY_BACKWARD_COMPATIBLE__) &&	   \
+ 100:/usr/avr/include/util/delay.h ****   __STDC_HOSTED__
+ 101:/usr/avr/include/util/delay.h **** #  include <math.h>
+ 102:/usr/avr/include/util/delay.h **** #endif
+ 103:/usr/avr/include/util/delay.h **** 
+ 104:/usr/avr/include/util/delay.h **** /**
+ 105:/usr/avr/include/util/delay.h ****    \ingroup util_delay
+ 106:/usr/avr/include/util/delay.h **** 
+ 107:/usr/avr/include/util/delay.h ****    Perform a delay of \c __ms milliseconds, using _delay_loop_2().
+ 108:/usr/avr/include/util/delay.h **** 
+ 109:/usr/avr/include/util/delay.h ****    The macro F_CPU is supposed to be defined to a
+ 110:/usr/avr/include/util/delay.h ****    constant defining the CPU clock frequency (in Hertz).
+ 111:/usr/avr/include/util/delay.h **** 
+ 112:/usr/avr/include/util/delay.h ****    The maximal possible delay is 262.14 ms / F_CPU in MHz.
+ 113:/usr/avr/include/util/delay.h **** 
+ 114:/usr/avr/include/util/delay.h ****    When the user request delay which exceed the maximum possible one,
+ 115:/usr/avr/include/util/delay.h ****    _delay_ms() provides a decreased resolution functionality. In this
+ 116:/usr/avr/include/util/delay.h ****    mode _delay_ms() will work with a resolution of 1/10 ms, providing
+ 117:/usr/avr/include/util/delay.h ****    delays up to 6.5535 seconds (independent from CPU frequency).  The
+ 118:/usr/avr/include/util/delay.h ****    user will not be informed about decreased resolution.
+ 119:/usr/avr/include/util/delay.h **** 
+ 120:/usr/avr/include/util/delay.h ****    If the avr-gcc toolchain has __builtin_avr_delay_cycles(unsigned long)
+ 121:/usr/avr/include/util/delay.h ****    support, maximal possible delay is 4294967.295 ms/ F_CPU in MHz. For
+ 122:/usr/avr/include/util/delay.h ****    values greater than the maximal possible delay, overflows results in
+ 123:/usr/avr/include/util/delay.h ****    no delay i.e., 0ms.
+ 124:/usr/avr/include/util/delay.h **** 
+ 125:/usr/avr/include/util/delay.h ****    Conversion of __us into clock cycles may not always result in integer.
+ 126:/usr/avr/include/util/delay.h ****    By default, the clock cycles rounded up to next integer. This ensures that
+ 127:/usr/avr/include/util/delay.h ****    the user gets atleast __us microseconds of delay.
+ 128:/usr/avr/include/util/delay.h **** 
+ 129:/usr/avr/include/util/delay.h ****    Alternatively, user can define __DELAY_ROUND_DOWN__ and __DELAY_ROUND_CLOSEST__
+ 130:/usr/avr/include/util/delay.h ****    to round down and round to closest integer.
+ 131:/usr/avr/include/util/delay.h **** 
+ 132:/usr/avr/include/util/delay.h ****    Note: The new implementation of _delay_ms(double __ms) with 
+ 133:/usr/avr/include/util/delay.h ****     __builtin_avr_delay_cycles(unsigned long) support is not backward compatible. 
+ 134:/usr/avr/include/util/delay.h ****    User can define __DELAY_BACKWARD_COMPATIBLE__ to get a backward compatible delay.
+ 135:/usr/avr/include/util/delay.h ****    Also, the backward compatible
+ 136:/usr/avr/include/util/delay.h ****    algorithm will be chosen if the code is compiled in a <em>freestanding
+ 137:/usr/avr/include/util/delay.h ****    environment</em> (GCC option \c -ffreestanding), as the math functions
+ 138:/usr/avr/include/util/delay.h ****    required for rounding are not available to the compiler then.
+ 139:/usr/avr/include/util/delay.h **** 
+ 140:/usr/avr/include/util/delay.h ****  */
+ 141:/usr/avr/include/util/delay.h **** void
+ 142:/usr/avr/include/util/delay.h **** _delay_ms(double __ms)
+ 143:/usr/avr/include/util/delay.h **** {
+ 144:/usr/avr/include/util/delay.h **** 	uint16_t __ticks;
+ 145:/usr/avr/include/util/delay.h **** 	double __tmp ; 
+ 146:/usr/avr/include/util/delay.h **** #if __HAS_DELAY_CYCLES && defined(__OPTIMIZE__) && \
+ 147:/usr/avr/include/util/delay.h ****   !defined(__DELAY_BACKWARD_COMPATIBLE__) &&	   \
+ 148:/usr/avr/include/util/delay.h ****   __STDC_HOSTED__
+ 149:/usr/avr/include/util/delay.h **** 	uint32_t __ticks_dc;
+ 150:/usr/avr/include/util/delay.h **** 	extern void __builtin_avr_delay_cycles(unsigned long);
+ 151:/usr/avr/include/util/delay.h **** 	__tmp = ((F_CPU) / 1e3) * __ms;
+ 152:/usr/avr/include/util/delay.h **** 
+ 153:/usr/avr/include/util/delay.h **** 	#if defined(__DELAY_ROUND_DOWN__)
+ 154:/usr/avr/include/util/delay.h **** 		__ticks_dc = (uint32_t)fabs(__tmp);
+ 155:/usr/avr/include/util/delay.h **** 
+ 156:/usr/avr/include/util/delay.h **** 	#elif defined(__DELAY_ROUND_CLOSEST__)
+ 157:/usr/avr/include/util/delay.h **** 		__ticks_dc = (uint32_t)(fabs(__tmp)+0.5);
+ 158:/usr/avr/include/util/delay.h **** 
+ 159:/usr/avr/include/util/delay.h **** 	#else
+ 160:/usr/avr/include/util/delay.h **** 		//round up by default
+ 161:/usr/avr/include/util/delay.h **** 		__ticks_dc = (uint32_t)(ceil(fabs(__tmp)));
+ 162:/usr/avr/include/util/delay.h **** 	#endif
+ 163:/usr/avr/include/util/delay.h **** 
+ 164:/usr/avr/include/util/delay.h **** 	__builtin_avr_delay_cycles(__ticks_dc);
+  40               		.loc 2 164 0
+  41 0016 2FEF      		ldi r18,lo8(3199999)
+  42 0018 83ED      		ldi r24,hi8(3199999)
+  43 001a 90E3      		ldi r25,hlo8(3199999)
+  44 001c 2150      		1: subi r18,1
+  45 001e 8040      		sbci r24,0
+  46 0020 9040      		sbci r25,0
+  47 0022 01F4      		brne 1b
+  48 0024 00C0      		rjmp .
+  49 0026 0000      		nop
+  50               	.LBE11:
+  51               	.LBE10:
+  51:example.c     **** 
+  52:example.c     **** 	// Wait an extra second for the PC's operating system to load drivers
+  53:example.c     **** 	// and do whatever it does to actually be ready for input
+  54:example.c     **** 	_delay_ms(1000);
+  55:example.c     **** 
+  56:example.c     ****         // Configure timer 0 to generate a timer overflow interrupt every
+  57:example.c     ****         // 256*1024 clock cycles, or approx 61 Hz when using 16 MHz clock
+  58:example.c     ****         TCCR0A = 0x00;
+  52               		.loc 1 58 0
+  53 0028 14BC      		out 0x24,__zero_reg__
+  59:example.c     ****         TCCR0B = 0x05;
+  54               		.loc 1 59 0
+  55 002a 85E0      		ldi r24,lo8(5)
+  56 002c 85BD      		out 0x25,r24
+  60:example.c     ****         TIMSK0 = (1<<TOIE0);
+  57               		.loc 1 60 0
+  58 002e 81E0      		ldi r24,lo8(1)
+  59 0030 8093 6E00 		sts 110,r24
+  61:example.c     **** 
+  62:example.c     **** 	print("Begin rawhid example program\n");
+  60               		.loc 1 62 0
+  61 0034 80E0      		ldi r24,lo8(__c.1816)
+  62 0036 90E0      		ldi r25,hi8(__c.1816)
+  63 0038 0E94 0000 		call print_P
+  64               	.LVL4:
+  41:example.c     **** 
+  65               		.loc 1 41 0
+  66 003c C0E0      		ldi r28,0
+  67 003e D0E0      		ldi r29,0
+  63:example.c     **** 	while (1) {
+  64:example.c     **** 		// if received data, do something with it
+  65:example.c     **** 		r = usb_rawhid_recv(buffer, 0);
+  66:example.c     **** 		if (r > 0) {
+  67:example.c     **** 			// output 4 bits to D0, D1, D2, D3 pins
+  68:example.c     **** 			DDRD = 0x0F;
+  68               		.loc 1 68 0
+  69 0040 8FE0      		ldi r24,lo8(15)
+  70 0042 D82E      		mov r13,r24
+  69:example.c     **** 			PORTD = (PORTD & 0xF0) | (buffer[0] & 0x0F);
+  70:example.c     **** 			// ignore the other 63.5 bytes....
+  71:example.c     **** 			print("receive packet, buffer[0]=");
+  72:example.c     **** 			phex(buffer[0]);
+  73:example.c     **** 			print("\n");
+  74:example.c     **** 		}
+  75:example.c     **** 		// if time to send output, transmit something interesting
+  76:example.c     **** 		if (do_output) {
+  77:example.c     **** 			do_output = 0;
+  78:example.c     **** 			// send a packet, first 2 bytes 0xABCD
+  79:example.c     **** 			buffer[0] = 0xAB;
+  71               		.loc 1 79 0
+  72 0044 9BEA      		ldi r25,lo8(-85)
+  73 0046 C92E      		mov r12,r25
+  80:example.c     **** 			buffer[1] = 0xCD;
+  74               		.loc 1 80 0
+  75 0048 2DEC      		ldi r18,lo8(-51)
+  76 004a B22E      		mov r11,r18
+  77               	.LVL5:
+  78               	.L6:
+  65:example.c     **** 		if (r > 0) {
+  79               		.loc 1 65 0
+  80 004c 60E0      		ldi r22,0
+  81 004e 80E0      		ldi r24,lo8(buffer)
+  82 0050 90E0      		ldi r25,hi8(buffer)
+  83 0052 0E94 0000 		call usb_rawhid_recv
+  84               	.LVL6:
+  85 0056 E82E      		mov r14,r24
+  86               	.LVL7:
+  66:example.c     **** 			// output 4 bits to D0, D1, D2, D3 pins
+  87               		.loc 1 66 0
+  88 0058 1816      		cp __zero_reg__,r24
+  89 005a 04F4      		brge .L4
+  68:example.c     **** 			PORTD = (PORTD & 0xF0) | (buffer[0] & 0x0F);
+  90               		.loc 1 68 0
+  91 005c DAB8      		out 0xa,r13
+  69:example.c     **** 			// ignore the other 63.5 bytes....
+  92               		.loc 1 69 0
+  93 005e 2BB1      		in r18,0xb
+  94 0060 9091 0000 		lds r25,buffer
+  95 0064 9F70      		andi r25,lo8(15)
+  96 0066 207F      		andi r18,lo8(-16)
+  97 0068 922B      		or r25,r18
+  98 006a 9BB9      		out 0xb,r25
+  71:example.c     **** 			phex(buffer[0]);
+  99               		.loc 1 71 0
+ 100 006c 80E0      		ldi r24,lo8(__c.1818)
+ 101 006e 90E0      		ldi r25,hi8(__c.1818)
+ 102 0070 0E94 0000 		call print_P
+ 103               	.LVL8:
+  72:example.c     **** 			print("\n");
+ 104               		.loc 1 72 0
+ 105 0074 8091 0000 		lds r24,buffer
+ 106 0078 0E94 0000 		call phex
+ 107               	.LVL9:
+  73:example.c     **** 		}
+ 108               		.loc 1 73 0
+ 109 007c 80E0      		ldi r24,lo8(__c.1820)
+ 110 007e 90E0      		ldi r25,hi8(__c.1820)
+ 111 0080 0E94 0000 		call print_P
+ 112               	.LVL10:
+ 113               	.L4:
+  76:example.c     **** 			do_output = 0;
+ 114               		.loc 1 76 0
+ 115 0084 8091 0000 		lds r24,do_output
+ 116 0088 8823      		tst r24
+ 117 008a 01F0      		breq .L6
+  77:example.c     **** 			// send a packet, first 2 bytes 0xABCD
+ 118               		.loc 1 77 0
+ 119 008c 1092 0000 		sts do_output,__zero_reg__
+  79:example.c     **** 			buffer[1] = 0xCD;
+ 120               		.loc 1 79 0
+ 121 0090 C092 0000 		sts buffer,r12
+ 122               		.loc 1 80 0
+ 123 0094 B092 0000 		sts buffer+1,r11
+ 124               	.LVL11:
+ 125 0098 00E0      		ldi r16,lo8(buffer+3)
+ 126 009a 10E0      		ldi r17,hi8(buffer+3)
+  81:example.c     ****  			// put A/D measurements into next 24 bytes
+  82:example.c     **** 			for (i=0; i<12; i++) {
+ 127               		.loc 1 82 0
+ 128 009c F12C      		mov r15,__zero_reg__
+ 129               	.LVL12:
+ 130               	.L8:
+  83:example.c     **** 				val = analogRead(i);
+ 131               		.loc 1 83 0 discriminator 2
+ 132 009e 8F2D      		mov r24,r15
+ 133 00a0 0E94 0000 		call analogRead
+ 134               	.LVL13:
+ 135 00a4 F801      		movw r30,r16
+ 136 00a6 3197      		sbiw r30,1
+  84:example.c     **** 				buffer[i * 2 + 2] = val >> 8;
+ 137               		.loc 1 84 0 discriminator 2
+ 138 00a8 9083      		st Z,r25
+  85:example.c     **** 				buffer[i * 2 + 3] = val & 255;
+ 139               		.loc 1 85 0 discriminator 2
+ 140 00aa F801      		movw r30,r16
+ 141 00ac 8083      		st Z,r24
+  82:example.c     **** 				val = analogRead(i);
+ 142               		.loc 1 82 0 discriminator 2
+ 143 00ae F394      		inc r15
+ 144               	.LVL14:
+ 145 00b0 0E5F      		subi r16,-2
+ 146 00b2 1F4F      		sbci r17,-1
+ 147 00b4 FCE0      		ldi r31,lo8(12)
+ 148 00b6 FF12      		cpse r15,r31
+ 149 00b8 00C0      		rjmp .L8
+ 150 00ba E0E0      		ldi r30,lo8(buffer+26)
+ 151 00bc F0E0      		ldi r31,hi8(buffer+26)
+ 152               	.LVL15:
+ 153               	.L10:
+  86:example.c     **** 			}
+  87:example.c     **** 			// most of the packet filled with zero
+  88:example.c     **** 			for (i=26; i<62; i++) {
+  89:example.c     **** 				buffer[i] = 0;
+ 154               		.loc 1 89 0 discriminator 2
+ 155 00be 1192      		st Z+,__zero_reg__
+ 156               	.LVL16:
+  88:example.c     **** 				buffer[i] = 0;
+ 157               		.loc 1 88 0 discriminator 2
+ 158 00c0 20E0      		ldi r18,hi8(buffer+62)
+ 159 00c2 E030      		cpi r30,lo8(buffer+62)
+ 160 00c4 F207      		cpc r31,r18
+ 161 00c6 01F4      		brne .L10
+  90:example.c     **** 			}
+  91:example.c     **** 			// put a count in the last 2 bytes
+  92:example.c     **** 			buffer[62] = count >> 8;
+ 162               		.loc 1 92 0
+ 163 00c8 D093 0000 		sts buffer+62,r29
+  93:example.c     **** 			buffer[63] = count & 255;
+ 164               		.loc 1 93 0
+ 165 00cc C093 0000 		sts buffer+63,r28
+  94:example.c     **** 			// send the packet
+  95:example.c     **** 			usb_rawhid_send(buffer, 50);
+ 166               		.loc 1 95 0
+ 167 00d0 62E3      		ldi r22,lo8(50)
+ 168 00d2 80E0      		ldi r24,lo8(buffer)
+ 169 00d4 90E0      		ldi r25,hi8(buffer)
+ 170               	.LVL17:
+ 171 00d6 0E94 0000 		call usb_rawhid_send
+ 172               	.LVL18:
+  96:example.c     **** 			print("transmit packet ");
+ 173               		.loc 1 96 0
+ 174 00da 80E0      		ldi r24,lo8(__c.1828)
+ 175 00dc 90E0      		ldi r25,hi8(__c.1828)
+ 176 00de 0E94 0000 		call print_P
+ 177               	.LVL19:
+  97:example.c     **** 			phex16(count);
+ 178               		.loc 1 97 0
+ 179 00e2 CE01      		movw r24,r28
+ 180 00e4 0E94 0000 		call phex16
+ 181               	.LVL20:
+  98:example.c     **** 			print(", r=");
+ 182               		.loc 1 98 0
+ 183 00e8 80E0      		ldi r24,lo8(__c.1830)
+ 184 00ea 90E0      		ldi r25,hi8(__c.1830)
+ 185 00ec 0E94 0000 		call print_P
+ 186               	.LVL21:
+  99:example.c     **** 			phex(r);
+ 187               		.loc 1 99 0
+ 188 00f0 8E2D      		mov r24,r14
+ 189 00f2 0E94 0000 		call phex
+ 190               	.LVL22:
+ 100:example.c     **** 			print("\n");
+ 191               		.loc 1 100 0
+ 192 00f6 80E0      		ldi r24,lo8(__c.1832)
+ 193 00f8 90E0      		ldi r25,hi8(__c.1832)
+ 194 00fa 0E94 0000 		call print_P
+ 195               	.LVL23:
+ 101:example.c     **** 			count++;
+ 196               		.loc 1 101 0
+ 197 00fe 2196      		adiw r28,1
+ 198               	.LVL24:
+ 199 0100 00C0      		rjmp .L6
+ 200               		.cfi_endproc
+ 201               	.LFE7:
+ 203               		.section	.text.__vector_23,"ax",@progbits
+ 204               	.global	__vector_23
+ 206               	__vector_23:
+ 207               	.LFB8:
+ 102:example.c     **** 		}
+ 103:example.c     **** 	}
+ 104:example.c     **** }
+ 105:example.c     **** 
+ 106:example.c     **** // This interrupt routine is run approx 61 times per second.
+ 107:example.c     **** ISR(TIMER0_OVF_vect)
+ 108:example.c     **** {
+ 208               		.loc 1 108 0
+ 209               		.cfi_startproc
+ 210 0000 1F92      		push r1
+ 211               	.LCFI0:
+ 212               		.cfi_def_cfa_offset 3
+ 213               		.cfi_offset 1, -2
+ 214 0002 0F92      		push r0
+ 215               	.LCFI1:
+ 216               		.cfi_def_cfa_offset 4
+ 217               		.cfi_offset 0, -3
+ 218 0004 0FB6      		in r0,__SREG__
+ 219 0006 0F92      		push r0
+ 220 0008 1124      		clr __zero_reg__
+ 221 000a 8F93      		push r24
+ 222               	.LCFI2:
+ 223               		.cfi_def_cfa_offset 5
+ 224               		.cfi_offset 24, -4
+ 225               	/* prologue: Signal */
+ 226               	/* frame size = 0 */
+ 227               	/* stack size = 4 */
+ 228               	.L__stack_usage = 4
+ 109:example.c     **** 	static uint8_t count=0;
+ 110:example.c     **** 
+ 111:example.c     **** 	// set the do_output variable every 2 seconds
+ 112:example.c     **** 	if (++count > 122) {
+ 229               		.loc 1 112 0
+ 230 000c 8091 0000 		lds r24,count.1840
+ 231 0010 8F5F      		subi r24,lo8(-(1))
+ 232 0012 8B37      		cpi r24,lo8(123)
+ 233 0014 00F4      		brsh .L14
+ 234 0016 8093 0000 		sts count.1840,r24
+ 235 001a 00C0      		rjmp .L13
+ 236               	.L14:
+ 113:example.c     **** 		count = 0;
+ 237               		.loc 1 113 0
+ 238 001c 1092 0000 		sts count.1840,__zero_reg__
+ 114:example.c     **** 		do_output = 1;
+ 239               		.loc 1 114 0
+ 240 0020 81E0      		ldi r24,lo8(1)
+ 241 0022 8093 0000 		sts do_output,r24
+ 242               	.L13:
+ 243               	/* epilogue start */
+ 115:example.c     **** 	}
+ 116:example.c     **** }
+ 244               		.loc 1 116 0
+ 245 0026 8F91      		pop r24
+ 246 0028 0F90      		pop r0
+ 247 002a 0FBE      		out __SREG__,r0
+ 248 002c 0F90      		pop r0
+ 249 002e 1F90      		pop r1
+ 250 0030 1895      		reti
+ 251               		.cfi_endproc
+ 252               	.LFE8:
+ 254               		.local	count.1840
+ 255               		.comm	count.1840,1,1
+ 256               		.section	.progmem.data,"a",@progbits
+ 259               	__c.1832:
+ 260 0000 0A00      		.string	"\n"
+ 263               	__c.1830:
+ 264 0002 2C20 723D 		.string	", r="
+ 264      00
+ 267               	__c.1828:
+ 268 0007 7472 616E 		.string	"transmit packet "
+ 268      736D 6974 
+ 268      2070 6163 
+ 268      6B65 7420 
+ 268      00
+ 271               	__c.1820:
+ 272 0018 0A00      		.string	"\n"
+ 275               	__c.1818:
+ 276 001a 7265 6365 		.string	"receive packet, buffer[0]="
+ 276      6976 6520 
+ 276      7061 636B 
+ 276      6574 2C20 
+ 276      6275 6666 
+ 279               	__c.1816:
+ 280 0035 4265 6769 		.string	"Begin rawhid example program\n"
+ 280      6E20 7261 
+ 280      7768 6964 
+ 280      2065 7861 
+ 280      6D70 6C65 
+ 281               		.comm	buffer,64,1
+ 282               	.global	do_output
+ 283               		.section .bss
+ 286               	do_output:
+ 287 0000 00        		.zero	1
+ 288               		.text
+ 289               	.Letext0:
+ 290               		.file 3 "/usr/avr/include/stdint.h"
+ 291               		.file 4 "usb_rawhid_debug.h"
+ 292               		.file 5 "print.h"
+ 293               		.file 6 "analog.h"
+DEFINED SYMBOLS
+                            *ABS*:0000000000000000 example.c
+     /tmp/ccG1HwvS.s:2      *ABS*:000000000000003e __SP_H__
+     /tmp/ccG1HwvS.s:3      *ABS*:000000000000003d __SP_L__
+     /tmp/ccG1HwvS.s:4      *ABS*:000000000000003f __SREG__
+     /tmp/ccG1HwvS.s:5      *ABS*:0000000000000000 __tmp_reg__
+     /tmp/ccG1HwvS.s:6      *ABS*:0000000000000001 __zero_reg__
+     /tmp/ccG1HwvS.s:13     .text.startup.main:0000000000000000 main
+     /tmp/ccG1HwvS.s:279    .progmem.data:0000000000000035 __c.1816
+                            *COM*:0000000000000040 buffer
+     /tmp/ccG1HwvS.s:275    .progmem.data:000000000000001a __c.1818
+     /tmp/ccG1HwvS.s:271    .progmem.data:0000000000000018 __c.1820
+     /tmp/ccG1HwvS.s:286    .bss:0000000000000000 do_output
+     /tmp/ccG1HwvS.s:267    .progmem.data:0000000000000007 __c.1828
+     /tmp/ccG1HwvS.s:263    .progmem.data:0000000000000002 __c.1830
+     /tmp/ccG1HwvS.s:259    .progmem.data:0000000000000000 __c.1832
+     /tmp/ccG1HwvS.s:206    .text.__vector_23:0000000000000000 __vector_23
+                             .bss:0000000000000001 count.1840
+
+UNDEFINED SYMBOLS
+usb_init
+usb_configured
+print_P
+usb_rawhid_recv
+phex
+analogRead
+usb_rawhid_send
+phex16
+__do_clear_bss
