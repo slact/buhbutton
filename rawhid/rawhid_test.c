@@ -1,6 +1,8 @@
 #include <stdio.h>
+#include <string.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <stdint.h>
 
 #if defined(OS_LINUX) || defined(OS_MACOSX)
 #include <sys/ioctl.h>
@@ -10,15 +12,17 @@
 #endif
 
 #include "hid.h"
-
-
+#include "../shared.h"
+void print_state(state_t *state);
+void handle_packet(state_t *pkt);
 static char get_keystroke(void);
-
+state_t state;
 
 int main()
 {
-	int i, r, num;
+	int r, num;
 	char c, buf[64];
+  state_t *pkt;
 
 	// C-based example is 16C0:0480:FFAB:0200
 	r = rawhid_open(1, 0x16C0, 0x0480, 0xFFAB, 0x0200);
@@ -33,7 +37,7 @@ int main()
 	printf("found rawhid device\n");
 
 	while (1) {
-		// check if any Raw HID packet has arrived
+		// check if any Raw HID state_t has arrived
 		num = rawhid_recv(0, buf, 64, 220);
 		if (num < 0) {
 			printf("\nerror reading, device went offline\n");
@@ -41,21 +45,25 @@ int main()
 			return 0;
 		}
 		if (num > 0) {
-			printf("\nrecv %d bytes:\n", num);
-			for (i=0; i<num; i++) {
-				printf("%02X ", buf[i] & 255);
-				if (i % 16 == 15 && i < num-1) printf("\n");
-			}
-			printf("\n");
+      pkt = (state_t *)&buf;
+      printf("Received packet\n");
+      print_state(pkt);
 		}
+		
+		handle_packet(pkt);
+		
 		// check if any input on stdin
 		while ((c = get_keystroke()) >= 32) {
-			printf("\ngot key '%c', sending...\n", c);
-			buf[0] = c;
-			for (i=1; i<64; i++) {
-				buf[i] = 0;
-			}
-			rawhid_send(0, buf, 64, 100);
+			if (c=='1')
+        pkt->led[0]=1;
+      if (c=='2')
+        pkt->led[1]=1;
+      if (c=='v')
+        pkt->vibrate=1;
+      strcpy(pkt->header, "Hi!");
+      printf("Send packet\n");
+      print_state(pkt);
+			rawhid_send(0, pkt, 64, 100);
 		}
 	}
 }
@@ -97,4 +105,24 @@ static char get_keystroke(void)
 	return 0;
 }
 
+void handle_packet(state_t *pkt) {
+  if (pkt->button==0)
+    return;
+  pkt->led[0]=0;
+  pkt->led[1]=0;
+  pkt->vibrate=0;
+  rawhid_send(0, pkt, 64, 100);
+}
+
+void print_state(state_t *state) {
+  printf("Header: %s\n", state->header);
+  printf("LED1: %i LED2: %i\n", state->led[0], state->led[1]);
+  printf("Vibrate: %i\n", state->vibrate);
+  printf("Pattern: %i\n", state->pattern);
+  printf("Button: %i\n", state->button);
+  printf("PINF: %i\n", state->pinf);
+  printf("Footer: %s\n", state->footer);
+  printf("Size: %zu bytes\n", sizeof(*state));
+  printf("\n");
+}
 
