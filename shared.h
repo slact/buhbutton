@@ -8,6 +8,14 @@
     enum { ASSERT_CONCAT(assert_line_, __LINE__) = 1/(!!(e)) }
 #endif
 
+// These 4 numbers identify your device.  Set these to
+// something that is (hopefully) not used by any others!
+#define VENDOR_ID     0xFAD9
+#define PRODUCT_ID    0x2C5D
+#define RAWHID_USAGE_PAGE 0xFFBC
+#define RAWHID_USAGE  0xFFF0
+
+
 typedef struct {
   char header[5];
   uint8_t button;

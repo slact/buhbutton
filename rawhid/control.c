@@ -1,8 +1,11 @@
+ 
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdarg.h>
 #include <stdint.h>
+
+#include "../shared.h"
 
 #if defined(OS_LINUX) || defined(OS_MACOSX)
 #include <sys/ioctl.h>
@@ -12,7 +15,6 @@
 #endif
 
 #include "hid.h"
-#include "../shared.h"
 void print_state(state_t *state);
 void handle_packet(state_t *pkt);
 static char get_keystroke(void);
@@ -20,41 +22,36 @@ state_t state;
 
 int main()
 {
-	int r, num;
-	char c, buf[64];
+  int r, num;
+  char c, buf[64];
   state_t *pkt;
 
-	// C-based example is 16C0:0480:FFAB:0200
-	r = rawhid_open(1, 0x16C0, 0x0480, 0xFFAB, 0x0200);
-	if (r <= 0) {
-		// Arduino-based example is 16C0:0486:FFAB:0200
-		r = rawhid_open(1, 0x16C0, 0x0486, 0xFFAB, 0x0200);
-		if (r <= 0) {
-			printf("no rawhid device found\n");
-			return -1;
-		}
-	}
-	printf("found rawhid device\n");
+  r = rawhid_open(1, VENDOR_ID, PRODUCT_ID, RAWHID_USAGE_PAGE, RAWHID_USAGE);
+  if (r <= 0) {
+    printf("no rawhid device found\n");
+    return -1;
+  }
+  printf("found rawhid device\n");
 
-	while (1) {
-		// check if any Raw HID state_t has arrived
-		num = rawhid_recv(0, buf, 64, 220);
-		if (num < 0) {
-			printf("\nerror reading, device went offline\n");
-			rawhid_close(0);
-			return 0;
-		}
-		if (num > 0) {
+  while (1) {
+    // check if any Raw HID state_t has arrived
+    num = rawhid_recv(0, buf, 64, 220);
+    if (num < 0) {
+      printf("\nerror reading, device went offline\n");
+      rawhid_close(0);
+      return 0;
+    }
+    if (num > 0) {
       pkt = (state_t *)&buf;
       printf("Received packet\n");
       print_state(pkt);
-		}
-		
-		handle_packet(pkt);
-		
-		// check if any input on stdin
-		while ((c = get_keystroke()) >= 32) {
-			if (c=='1')
+    }
+    
+    handle_packet(pkt);
+    
+    // check if any input on stdin
+    while ((c = get_keystroke()) >= 32) {
+      if (c=='1')
         pkt->led[0]=1;
       if (c=='2')
         pkt->led[1]=1;
@@ -63,46 +60,46 @@ int main()
       strcpy(pkt->header, "Hi!");
       printf("Send packet\n");
       print_state(pkt);
-			rawhid_send(0, pkt, 64, 100);
-		}
-	}
+      rawhid_send(0, pkt, 64, 100);
+    }
+  }
 }
 
 #if defined(OS_LINUX) || defined(OS_MACOSX)
 // Linux (POSIX) implementation of _kbhit().
 // Morgan McGuire, morgan@cs.brown.edu
 static int _kbhit() {
-	static const int STDIN = 0;
-	static int initialized = 0;
-	int bytesWaiting;
+  static const int STDIN = 0;
+  static int initialized = 0;
+  int bytesWaiting;
 
-	if (!initialized) {
-		// Use termios to turn off line buffering
-		struct termios term;
-		tcgetattr(STDIN, &term);
-		term.c_lflag &= ~ICANON;
-		tcsetattr(STDIN, TCSANOW, &term);
-		setbuf(stdin, NULL);
-		initialized = 1;
-	}
-	ioctl(STDIN, FIONREAD, &bytesWaiting);
-	return bytesWaiting;
+  if (!initialized) {
+    // Use termios to turn off line buffering
+    struct termios term;
+    tcgetattr(STDIN, &term);
+    term.c_lflag &= ~ICANON;
+    tcsetattr(STDIN, TCSANOW, &term);
+    setbuf(stdin, NULL);
+    initialized = 1;
+  }
+  ioctl(STDIN, FIONREAD, &bytesWaiting);
+  return bytesWaiting;
 }
 static char _getch(void) {
-	char c;
-	if (fread(&c, 1, 1, stdin) < 1) return 0;
-	return c;
+  char c;
+  if (fread(&c, 1, 1, stdin) < 1) return 0;
+  return c;
 }
 #endif
 
 
 static char get_keystroke(void)
 {
-	if (_kbhit()) {
-		char c = _getch();
-		if (c >= 32) return c;
-	}
-	return 0;
+  if (_kbhit()) {
+    char c = _getch();
+    if (c >= 32) return c;
+  }
+  return 0;
 }
 
 void handle_packet(state_t *pkt) {

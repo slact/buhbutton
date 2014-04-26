@@ -3,7 +3,7 @@ OS = LINUX
 #OS = MACOSX
 #OS = WINDOWS
 
-PROG = rawhid_test
+PROG = control
 
 # To set up Ubuntu Linux to cross compile for Windows:
 #

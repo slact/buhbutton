@@ -25,9 +25,9 @@
 #include <avr/pgmspace.h>
 #include <avr/interrupt.h>
 #include <util/delay.h>
+#include "shared.h"
 #include "usb_rawhid.h"
 #include "analog.h"
-#include "shared.h"
 
 #define CPU_PRESCALE(n)  (CLKPR = 0x80, CLKPR = (n))
 
