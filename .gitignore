@@ -1,5 +1,5 @@
 *.o
-rawhid/rawhid_test
+rawhid/control
 .dep
 *.eep
 *.elf
