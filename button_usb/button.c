@@ -119,7 +119,6 @@ int handle_rawhid_packet(state_t *s) {
 }
 
 int handle_button(void) {
-  state.pinf=PINF;
   if (PINF & (1<<0)) {
     //button unpressed
     if (state.button==1)

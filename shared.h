@@ -22,7 +22,6 @@ typedef struct {
   uint8_t led[2];
   uint8_t vibrate;
   uint8_t pattern;
-  uint8_t pinf;
   char footer[5];
 } state_t;
 

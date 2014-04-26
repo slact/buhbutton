@@ -117,7 +117,6 @@ void print_state(state_t *state) {
   printf("Vibrate: %i\n", state->vibrate);
   printf("Pattern: %i\n", state->pattern);
   printf("Button: %i\n", state->button);
-  printf("PINF: %i\n", state->pinf);
   printf("Footer: %s\n", state->footer);
   printf("Size: %zu bytes\n", sizeof(*state));
   printf("\n");
