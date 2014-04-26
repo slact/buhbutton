@@ -1,5 +1,6 @@
 *.o
-rawhid/control
+control
+control_pc/control
 .dep
 *.eep
 *.elf
