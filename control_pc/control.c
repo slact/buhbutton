@@ -17,13 +17,14 @@
 #include "hid.h"
 void print_state(state_t *state);
 void handle_packet(state_t *pkt);
+void debug_control(state_t *st);
 static char get_keystroke(void);
 state_t state;
 
 int main()
 {
   int r, num;
-  char c, buf[64];
+  char buf[64];
   state_t *pkt;
 
   r = rawhid_open(1, VENDOR_ID, PRODUCT_ID, RAWHID_USAGE_PAGE, RAWHID_USAGE);
@@ -45,25 +46,10 @@ int main()
       pkt = (state_t *)&buf;
       printf("Received packet\n");
       print_state(pkt);
+      handle_packet(pkt);
     }
-    
-    handle_packet(pkt);
-    
-    // check if any input on stdin
-    while ((c = get_keystroke()) >= 32) {
-      if (c=='1')
-        pkt->led[0]=1;
-      if (c=='2')
-        pkt->led[1]=1;
-      if (c=='v')
-        pkt->vibrate=1;
-      if (c=='b')
-        pkt->buzz+=1;
-
-      printf("Send packet\n");
-      print_state(pkt);
-      rawhid_send(0, pkt, 64, 100);
-    }
+        
+    debug_control(pkt);
   }
 }
 
@@ -122,10 +108,30 @@ void print_state(state_t *state) {
   if (state->buzz == 0)
     printf("Buzzer: off\n");
   else
-    printf("Buzzer: %i, freq: %dHz\n", state->buzz, 16000000/state->buzz);
+    printf("Buzzer: %i, buggy freq guess: %dHz\n", state->buzz, 16000000/state->buzz);
   printf("Button: %i\n", state->button);
   printf("Footer: %s\n", state->footer);
   printf("Size: %zu bytes\n", sizeof(*state));
   printf("\n");
 }
+
+void debug_control(state_t *st) {
+  char c;
+  // check if any input on stdin
+  while ((c = get_keystroke()) >= 32) {
+    if (c=='1')
+      st->led[0]=1;
+    if (c=='2')
+      st->led[1]=1;
+    if (c=='v')
+      st->vibrate=1;
+    if (c=='b')
+      st->buzz+=1;
+    
+    printf("Send packet\n");
+    print_state(st);
+    rawhid_send(0, st, 64, 100);
+  }
+}
+
 
