@@ -57,7 +57,9 @@ int main()
         pkt->led[1]=1;
       if (c=='v')
         pkt->vibrate=1;
-      strcpy(pkt->header, "Hi!");
+      if (c=='b')
+        pkt->buzz+=1;
+
       printf("Send packet\n");
       print_state(pkt);
       rawhid_send(0, pkt, 64, 100);
@@ -108,6 +110,7 @@ void handle_packet(state_t *pkt) {
   pkt->led[0]=0;
   pkt->led[1]=0;
   pkt->vibrate=0;
+  pkt->buzz=0;
   rawhid_send(0, pkt, 64, 100);
 }
 
@@ -116,6 +119,10 @@ void print_state(state_t *state) {
   printf("LED1: %i LED2: %i\n", state->led[0], state->led[1]);
   printf("Vibrate: %i\n", state->vibrate);
   printf("Pattern: %i\n", state->pattern);
+  if (state->buzz == 0)
+    printf("Buzzer: off\n");
+  else
+    printf("Buzzer: %i, freq: %dHz\n", state->buzz, 16000000/state->buzz);
   printf("Button: %i\n", state->button);
   printf("Footer: %s\n", state->footer);
   printf("Size: %zu bytes\n", sizeof(*state));
