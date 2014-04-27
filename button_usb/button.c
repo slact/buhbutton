@@ -114,7 +114,6 @@ int handle_rawhid_packet(state_t *s) {
   memcpy(&state, s, sizeof(*s));
   state.button=btn;
   do_output=1;
-  state.footer[0]="ECHO";
   return 0;
 }
 
