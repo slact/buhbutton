@@ -132,6 +132,7 @@ int handle_button(void) {
 }
 
 void apply_state(state_t *s) {
+  static uint32_t buzz_count;
   if (s->led[0]==0)
     PORTB &= ~(1<<0);
   else
@@ -146,4 +147,19 @@ void apply_state(state_t *s) {
     PORTD &= ~(1<<5);
   else
     PORTD |= (1<<5);
+  
+  if (s->buzz==0) {
+    PORTD &= ~(1<<4);
+  } else {
+    buzz_count++;
+    if (buzz_count < s->buzz/2 ) {
+      PORTD &= ~(1<<4);
+    }
+    else if (buzz_count < s->buzz) {
+      PORTD |= (1<<4);
+    }
+    else if (buzz_count >= s->buzz) {
+      buzz_count=0;
+    }
+  }
 }
