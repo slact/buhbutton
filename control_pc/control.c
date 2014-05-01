@@ -5,7 +5,7 @@
 #include <stdarg.h>
 #include <stdint.h>
 
-#include <yaml.h>
+#include <jansson.h>
 #include <curl/curl.h>
 #include "../shared.h"
 
@@ -20,6 +20,7 @@ typedef struct {
   char id[255];
   char init_url[1024];
   char sub_url[1024];
+  CURL *curl;
   char etag[255];
   char last_modified[255];
 } subscriber_t;
@@ -29,7 +30,19 @@ struct string {
   size_t len;
 };
 
+typedef struct {
+  char *action;
+  int (*func)(subscriber_t *sub, json_t *data);
+} action_table_t;
 
+
+
+int action_alert(subscriber_t *sub, json_t *data);
+
+action_table_t actions_table[] = {
+  {"alert", &action_alert},
+  {NULL}
+};
 
 void init_string(struct string *s) {
   s->len = 0;
@@ -63,7 +76,8 @@ void handle_packet(state_t *pkt);
 void debug_control(state_t *st);
 static char get_keystroke(void);
 void subscriber_init(subscriber_t *sub);
-void test_yaml(void);
+void subscriber_check(subscriber_t *sub);
+void parse_action(json_t *data, subscriber_t *sub);
 state_t state;
 
 int main()
@@ -98,9 +112,8 @@ int main()
       print_state(pkt);
       handle_packet(pkt);
     }
-        
+    subscriber_check(&sub);
     debug_control(pkt);
-    test_yaml();
   }
 }
 
@@ -185,14 +198,6 @@ void debug_control(state_t *st) {
   }
 }
 
-void test_yaml(){
-  yaml_parser_t parser;
-  /* Initialize parser */
-  if(!yaml_parser_initialize(&parser))
-    fputs("Failed to initialize parser!\n", stderr);
-}
-
-
 void subscriber_init(subscriber_t *sub){
   CURL *curl;
   CURLcode result;
@@ -214,45 +219,102 @@ void subscriber_init(subscriber_t *sub){
   printf("body:\n %s\n", s.ptr);
   curl_easy_cleanup(curl);
   
-  yaml_parser_t parser;
-  yaml_token_t token; 
-  if (!yaml_parser_initialize(&parser))
-    fprintf(stderr, "Failed to initialize yaml parser!\n");
-  yaml_parser_set_input_string(&parser, s.ptr, s.len);
+  json_t *root, *id, *sub_url;
+  json_error_t error;
+  root = json_loadb(s.ptr, s.len, 0, &error);
+  if(!root) {
+    fprintf(stderr, "error: on line %d: %s\n", error.line, error.text);
+    exit(1);
+  }
+  if(!json_is_object(root)) {
+    fprintf(stderr, "json root was supposed to be an object");
+    json_decref(root);
+    exit(1);
+  }
+  id = json_object_get(root, "id");
+  if(!json_is_string(id)) {
+    fprintf(stderr, "error: id is not a string\n");
+    json_decref(root);
+    exit(1);
+  }
+  strcpy(sub->id, json_string_value(id));
+
+  sub_url = json_object_get(root, "subscribe_url");
+  if(!json_is_string(sub_url)) {
+    fprintf(stderr, "error: id is not a string\n");
+    json_decref(root);
+    exit(1);
+  }
+  strcpy(sub->sub_url, json_string_value(sub_url));
+
+  //init subscriber for realstruct
+  sub->curl = curl_easy_init();
+  curl_easy_setopt(sub->curl, CURLOPT_URL, sub->sub_url);
+  curl_easy_setopt(sub->curl, CURLOPT_FOLLOWLOCATION, 1L);
+  curl_easy_setopt(sub->curl, CURLOPT_WRITEFUNCTION, writefunc);
+}
+
+void subscriber_check(subscriber_t *sub) {
+  struct curl_slist *headers = NULL;
+  struct string s;
+  CURLcode result;
+  int i;
+  json_t *root;
+  json_error_t error;
   
-  
-  do {
-    yaml_parser_scan(&parser, &token);
-    switch(token.type)
-    {
-      int id_next=0, sub_url_next=0;
-      int token_key=0;
-      case YAML_KEY_TOKEN:   token_key=1; break;
-      case YAML_VALUE_TOKEN: token_key=0; break;
-      //ugly code follows
-      case YAML_SCALAR_TOKEN:
-        if (token_key==1 && strcmp((void *)token.data.scalar.value, "id"))
-          id_next=1;
-        else if (token_key==1 && strcmp((void *)token.data.scalar.value, "subscribe_url"))
-          sub_url_next=1;
-        else if (token_key==0 && id_next==1) {
-          //TODO: size check!!
-          memcpy(sub->id, token.data.scalar.value, token.data.scalar.length);
-          id_next=0;
-        }
-        else if (token_key==0 && sub_url_next==1) {
-          //TODO: size check!!
-          sub_url_next=0;
-          memcpy(sub->sub_url, token.data.scalar.value, token.data.scalar.length);
-        }
-        break;
-      default:
-        break;
+  //use all available caching information
+  if(strlen(sub->last_modified)>0) {
+    char last_modified[255];
+    char etag[255];
+    curl_easy_setopt(sub->curl, CURLOPT_HTTPHEADER, headers);
+    sprintf(last_modified, "If-Modified-Since: %s", sub->last_modified);
+    sprintf(etag, "If-None-Match: %s", sub->etag);
+    headers = curl_slist_append(headers, last_modified);
+    headers = curl_slist_append(headers, etag);
+  }
+
+  curl_easy_setopt(sub->curl, CURLOPT_WRITEDATA, &s);
+  init_string(&s);
+
+  result = curl_easy_perform(sub->curl);
+  if(result != CURLE_OK) {
+    /* if errors have occured, tell us wath's wrong with 'result'*/
+    fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(result));
+  }
+  printf("body:\n %s\n", s.ptr);
+
+  root = json_loadb(s.ptr, s.len, 0, &error);
+  //parse some json
+  if(json_is_object(root)) {
+    fprintf(stderr, "error: root is not an array\n");
+    parse_action(root, sub);
+    json_decref(root);
+    return;
+  }
+  else if(json_is_array(root)){
+    for(i = 0; i < json_array_size(root); i++) {
+      parse_action(json_array_get(root, i), sub);
     }
-    if(token.type != YAML_STREAM_END_TOKEN)
-      yaml_token_delete(&token);
-  } while(token.type != YAML_STREAM_END_TOKEN);
-  
-  yaml_token_delete(&token);
-  free(s.ptr);
+  }
+  json_decref(root);
+}
+
+int action_alert(subscriber_t *sub, json_t *data) {
+  return 0;
+}
+
+void parse_action(json_t *data, subscriber_t *sub) {
+  json_t *action;
+  int i=0;
+  if(!json_is_object(data)) {
+    fprintf(stderr, "error: data is not an onject\n");
+    return;
+  }
+  action = json_object_get(data, "action");
+  while (actions_table[i].action != NULL){
+    if (strcmp(actions_table[i].action, json_string_value(action))) {
+      actions_table[i].func(sub, data);
+    }
+    i++;
+  }
 }

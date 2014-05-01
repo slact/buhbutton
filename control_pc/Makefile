@@ -16,7 +16,7 @@ TARGET = $(PROG)
 CC = gcc
 STRIP = strip
 CFLAGS = -Wall -g -ggdb -DOS_$(OS)
-LIBS = -lusb -lcurl -lyaml
+LIBS = -lusb -lcurl -ljansson
 else ifeq ($(OS), MACOSX)
 TARGET = $(PROG).dmg
 SDK = /Developer/SDKs/MacOSX10.5.sdk
