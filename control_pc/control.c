@@ -5,6 +5,8 @@
 #include <stdarg.h>
 #include <stdint.h>
 
+#include <yaml.h>
+#include <curl/curl.h>
 #include "../shared.h"
 
 #if defined(OS_LINUX) || defined(OS_MACOSX)
@@ -14,15 +16,63 @@
 #include <conio.h>
 #endif
 
+typedef struct {
+  char id[255];
+  char init_url[1024];
+  char sub_url[1024];
+  char etag[255];
+  char last_modified[255];
+} subscriber_t;
+
+struct string {
+  char *ptr;
+  size_t len;
+};
+
+
+
+void init_string(struct string *s) {
+  s->len = 0;
+  s->ptr = malloc(s->len+1);
+  if (s->ptr == NULL) {
+    fprintf(stderr, "malloc() failed\n");
+    exit(EXIT_FAILURE);
+  }
+  s->ptr[0] = '\0';
+}
+
+size_t writefunc(void *ptr, size_t size, size_t nmemb, struct string *s)
+{
+  size_t new_len = s->len + size*nmemb;
+  s->ptr = realloc(s->ptr, new_len+1);
+  if (s->ptr == NULL) {
+    fprintf(stderr, "realloc() failed\n");
+    exit(EXIT_FAILURE);
+  }
+  memcpy(s->ptr+s->len, ptr, size*nmemb);
+  s->ptr[new_len] = '\0';
+  s->len = new_len;
+  
+  return size*nmemb;
+}
+
+
 #include "hid.h"
 void print_state(state_t *state);
 void handle_packet(state_t *pkt);
 void debug_control(state_t *st);
 static char get_keystroke(void);
+void subscriber_init(subscriber_t *sub);
+void test_yaml(void);
 state_t state;
 
 int main()
 {
+  subscriber_t sub;
+  memset(&sub, '\0', sizeof(sub));
+  strcpy(sub.init_url, "https://slact.net/foo.json");
+  subscriber_init(&sub);
+  
   int r, num;
   char buf[64];
   state_t *pkt;
@@ -50,6 +100,7 @@ int main()
     }
         
     debug_control(pkt);
+    test_yaml();
   }
 }
 
@@ -134,4 +185,74 @@ void debug_control(state_t *st) {
   }
 }
 
+void test_yaml(){
+  yaml_parser_t parser;
+  /* Initialize parser */
+  if(!yaml_parser_initialize(&parser))
+    fputs("Failed to initialize parser!\n", stderr);
+}
 
+
+void subscriber_init(subscriber_t *sub){
+  CURL *curl;
+  CURLcode result;
+  struct string s;
+  init_string(&s);
+  //curl_global_init(CURL_GLOBAL_ALL);
+  printf("Init at %s\n", sub->init_url);
+  curl = curl_easy_init();
+  curl_easy_setopt(curl, CURLOPT_URL, sub->init_url);
+  curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+  curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writefunc);
+  curl_easy_setopt(curl, CURLOPT_WRITEDATA, &s);
+  result = curl_easy_perform(curl);
+  if(result != CURLE_OK) {
+    /* if errors have occured, tell us wath's wrong with 'result'*/
+    fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(result));
+    exit(1);
+  }
+  printf("body:\n %s\n", s.ptr);
+  curl_easy_cleanup(curl);
+  
+  yaml_parser_t parser;
+  yaml_token_t token; 
+  if (!yaml_parser_initialize(&parser))
+    fprintf(stderr, "Failed to initialize yaml parser!\n");
+  yaml_parser_set_input_string(&parser, s.ptr, s.len);
+  
+  
+  do {
+    yaml_parser_scan(&parser, &token);
+    switch(token.type)
+    {
+      int id_next=0, sub_url_next=0;
+      int token_key=0;
+      case YAML_KEY_TOKEN:   token_key=1; break;
+      case YAML_VALUE_TOKEN: token_key=0; break;
+      //ugly code follows
+      case YAML_SCALAR_TOKEN:
+        if (token_key==1 && strcmp((void *)token.data.scalar.value, "id"))
+          id_next=1;
+        else if (token_key==1 && strcmp((void *)token.data.scalar.value, "subscribe_url"))
+          sub_url_next=1;
+        else if (token_key==0 && id_next==1) {
+          //TODO: size check!!
+          memcpy(sub->id, token.data.scalar.value, token.data.scalar.length);
+          id_next=0;
+        }
+        else if (token_key==0 && sub_url_next==1) {
+          //TODO: size check!!
+          sub_url_next=0;
+          memcpy(sub->sub_url, token.data.scalar.value, token.data.scalar.length);
+        }
+        break;
+      default:
+        break;
+    }
+    if(token.type != YAML_STREAM_END_TOKEN)
+      yaml_token_delete(&token);
+  } while(token.type != YAML_STREAM_END_TOKEN);
+  
+  yaml_token_delete(&token);
+  free(s.ptr);
+}

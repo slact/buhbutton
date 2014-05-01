@@ -15,8 +15,8 @@ ifeq ($(OS), LINUX)
 TARGET = $(PROG)
 CC = gcc
 STRIP = strip
-CFLAGS = -Wall -O2 -DOS_$(OS)
-LIBS = -lusb -lcurl
+CFLAGS = -Wall -g -ggdb -DOS_$(OS)
+LIBS = -lusb -lcurl -lyaml
 else ifeq ($(OS), MACOSX)
 TARGET = $(PROG).dmg
 SDK = /Developer/SDKs/MacOSX10.5.sdk
@@ -30,7 +30,7 @@ TARGET = $(PROG).exe
 CC = i686-w64-mingw32-gcc
 STRIP = i686-w64-mingw32-strip
 CFLAGS = -Wall -O2 -DOS_$(OS)
-LIBS = -lhid -lsetupapi -lcurl
+LIBS = -lhid -lsetupapi -lcurl -lyaml
 endif
 
 OBJS = $(PROG).o hid.o
