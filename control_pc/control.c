@@ -1,4 +1,4 @@
-#define INIT_URL "https://slact.net/hello.json"
+#define INIT_URL "https:/localhost:9092/hello"
 #define MAX_ALERTS 3
  
  
@@ -26,19 +26,22 @@
 #include <Windows.h>
 #endif
 
+struct string {
+  char *ptr;
+  size_t len;
+};
+
 typedef struct {
   char id[255];
   char init_url[1024];
   char sub_url[1024];
   CURL *curl;
+  CURLM  *mcurl;
+  int requests_running;
+  struct string str;
   char etag[255];
   char last_modified[255];
 } subscriber_t;
-
-struct string {
-  char *ptr;
-  size_t len;
-};
 
 typedef struct {
   char *action;
@@ -120,14 +123,15 @@ action_table_t actions_table[] = {
 };
 
 #if defined(OS_LINUX)
-  #define OPENURL_COMMAND_FORMAT "xdg-open \"%s\""
+  #define OPENURL_COMMAND_FORMAT "xdg-open \"%s\" &"
 #elif defined(OS_MACOSX)
-  #define OPENURL_COMMAND_FORMAT "open \"%s\""
+  #define OPENURL_COMMAND_FORMAT "open \"%s\" &"
 #elif defined(OS_WINDOWS)
   #define OPENURL_COMMAND_FORMAT "explorer \"%s\""
 #endif
 
 void init_string(struct string *s) {
+  printf("init string!!");
   s->len = 0;
   s->ptr = malloc(s->len+1);
   if (s->ptr == NULL) {
@@ -139,6 +143,7 @@ void init_string(struct string *s) {
 
 size_t writefunc(void *ptr, size_t size, size_t nmemb, struct string *s)
 {
+  printf("writefunc");
   size_t new_len = s->len + size*nmemb;
   s->ptr = realloc(s->ptr, new_len+1);
   if (s->ptr == NULL) {
@@ -149,6 +154,22 @@ size_t writefunc(void *ptr, size_t size, size_t nmemb, struct string *s)
   s->ptr[new_len] = '\0';
   s->len = new_len;
   
+  return size*nmemb;
+}
+
+size_t setheaderfunc( void *ptr, size_t size, size_t nmemb, void *userdata){
+  subscriber_t *sub=(subscriber_t *)userdata;
+  size_t headerval_len=0;
+  if(strncmp("Etag: ", ptr, strlen("Etag: "))==0) { 
+    headerval_len= size*nmemb-strlen("Etag: ")-2; //-2 for /r/n at the end
+    memcpy(sub->etag, ptr + strlen("Etag: "), headerval_len);
+    memset(sub->etag+headerval_len, '\0', 1);
+  }
+  else if(strncmp("Last-Modified: ", ptr, strlen("Last-Modified: "))==0) { 
+    headerval_len= size*nmemb-strlen("Last-Modified: ")-2; //-2 for /r/n at the end
+    memcpy(sub->last_modified, ptr + strlen("Last-Modified: "), headerval_len);
+    memset(sub->last_modified+headerval_len, '\0', 1);
+  }
   return size*nmemb;
 }
 
@@ -165,14 +186,14 @@ void set_state(state_t *st, int state);
 state_t state;
 
 int send_state; //send state packet to button? 0:no, 1:yes
-int main()
-{
+int main(int argc, char *argv[]){
   alerts_count=0;
   send_state=0;
   
   subscriber_t sub;
   memset(&sub, '\0', sizeof(sub));
-  strcpy(sub.init_url, INIT_URL);
+  printf("handshake at \"%s\"\n", argv[1]);
+  strcpy(sub.init_url, argv[1]);
   subscriber_init(&sub);
   first_alert=NULL;
   last_alert=NULL;
@@ -185,7 +206,10 @@ int main()
     subscriber_check(&sub, &state);
     if (r <= 0) {
       r = rawhid_open(1, VENDOR_ID, PRODUCT_ID, RAWHID_USAGE_PAGE, RAWHID_USAGE);
-      sleep(2);
+      if (r > 0){
+        //initialize button in idle state
+        set_state(&state, STATE_IDLE);
+      }
     }
     else {
       // check if any Raw HID state_t has arrived
@@ -199,19 +223,21 @@ int main()
         pkt = (state_t *)&buf;
         printf("Received packet\n");
         print_state(pkt);
+        //memcpy(&state, pkt, sizeof(state));
         if (pkt->button>0) {
           handle_button_press(pkt);
         }
-        memcpy(&state, pkt, sizeof(state));
       }
-      debug_control(pkt);
+      //debug_control(pkt);
       if(send_state==1) {
         send_state=0;
         rawhid_send(0, &state, 64, 100);
       }
     }
-    if(r==0)
+    if(r==0) {
       printf("no button device found\n");
+      usleep(100);
+    }
   }
 }
 
@@ -256,37 +282,51 @@ void handle_button_press(state_t *pkt) {
   if (pkt->button==0)
     return;
   alert_t *alert = first_alert;
+  if (alert==NULL) {
+    return;
+  }
   
   char *cmd=malloc(snprintf(NULL, 0, OPENURL_COMMAND_FORMAT, alert->url) + 1);
   sprintf(cmd, OPENURL_COMMAND_FORMAT, alert->url);
+  
   system(cmd);
+  
   free(cmd);
   free_alert(alert);
-  set_state(pkt, STATE_IDLE);
+  if (alerts_count==0) {
+    set_state(&state, STATE_IDLE);
+  } 
+  else if(alerts_count==1) {
+    set_state(&state, STATE_ALERT);
+  }
+  else if(alerts_count>1) {
+    set_state(&state, STATE_ALERT_URGENT);
+  }
+  pkt->button=0;
 }
 
 void set_state(state_t *st, int state) {
   switch(state) {
     case STATE_IDLE:
-      st->led[0]=0;
-      st->led[1]=0;
-      st->vibrate=0;
-      st->pattern=0;
-      st->buzz=0;
+      st->led[0]=LED_OFF;
+      st->led[1]=LED_OFF;
+      st->vibrate=MOTOR_OFF;
+      st->pattern=NO_PATTERN;
+      st->buzz=BUZZER_OFF;
       break;
     case STATE_ALERT:
-      st->led[0]=1;
-      st->led[1]=1;
-      st->vibrate=0;
-      st->pattern=0;
-      st->buzz=0;
+      st->led[0]=LED_ON;
+      st->led[1]=LED_ON;
+      st->vibrate=MOTOR_OFF;
+      st->pattern=NO_PATTERN;
+      st->buzz=BUZZER_OFF;
       break;
     case STATE_ALERT_URGENT:
-      st->led[0]=1;
-      st->led[1]=1;
-      st->vibrate=1;
-      st->pattern=0;
-      st->buzz=0;
+      st->led[0]=LED_ON;
+      st->led[1]=LED_ON;
+      st->vibrate=MOTOR_ON;
+      st->pattern=NO_PATTERN;
+      st->buzz=BUZZER_OFF;
       break;
   }
   send_state=1;
@@ -329,6 +369,7 @@ void debug_control(state_t *st) {
 void subscriber_init(subscriber_t *sub){
   CURL *curl;
   CURLcode result;
+  
   struct string s;
   init_string(&s);
   //curl_global_init(CURL_GLOBAL_ALL);
@@ -374,63 +415,93 @@ void subscriber_init(subscriber_t *sub){
     exit(1);
   }
   strcpy(sub->sub_url, json_string_value(sub_url));
+}
 
-  //init subscriber for realstruct
-  sub->curl = curl_easy_init();
+void setcurlopts(subscriber_t *sub) {
+  //curl_easy_setopt(sub->curl, CURLOPT_VERBOSE, 1);
   curl_easy_setopt(sub->curl, CURLOPT_URL, sub->sub_url);
   curl_easy_setopt(sub->curl, CURLOPT_FOLLOWLOCATION, 1L);
   curl_easy_setopt(sub->curl, CURLOPT_WRITEFUNCTION, writefunc);
+  curl_easy_setopt(sub->curl, CURLOPT_HEADERFUNCTION, setheaderfunc);
+  curl_easy_setopt(sub->curl, CURLOPT_WRITEDATA, &sub->str);
+  curl_easy_setopt(sub->curl, CURLOPT_WRITEHEADER, sub);
 }
+
 
 void subscriber_check(subscriber_t *sub, state_t *state) {
   struct curl_slist *headers = NULL;
-  struct string s;
-  CURLcode result;
-  int i;
+  CURLcode result = CURLE_FAILED_INIT;
+  int i, prev_req_running = sub->requests_running;
   json_t *root;
   json_error_t error;
-  
-  //use all available caching information
-  if(strlen(sub->last_modified)>0) {
-    char last_modified[255];
-    char etag[255];
-    curl_easy_setopt(sub->curl, CURLOPT_HTTPHEADER, headers);
-    sprintf(last_modified, "If-Modified-Since: %s", sub->last_modified);
-    sprintf(etag, "If-None-Match: %s", sub->etag);
-    headers = curl_slist_append(headers, last_modified);
-    headers = curl_slist_append(headers, etag);
-  }
 
-  curl_easy_setopt(sub->curl, CURLOPT_WRITEDATA, &s);
-  init_string(&s);
-
-  result = curl_easy_perform(sub->curl);
-  if(result != CURLE_OK) {
-    /* if errors have occured, tell us wath's wrong with 'result'*/
-    fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(result));
+  if(sub->curl==NULL) {
+    //init subscriber for real
+    sub->curl = curl_easy_init();
+    sub->mcurl = curl_multi_init();
+    curl_multi_add_handle(sub->mcurl, sub->curl);
+    init_string(&sub->str);
+    setcurlopts(sub);
   }
-  printf("body:\n %s\n", s.ptr);
-
-  root = json_loadb(s.ptr, s.len, 0, &error);
-  if(!root) {
-    fprintf(stderr, "error: on line %d: %s\n", error.line, error.text);
-    return;
-  }
-  if(json_is_object(root)) {
-    fprintf(stderr, "error: root is not an array\n");
-    parse_action(root, sub, state);
-    json_decref(root);
-    return;
-  }
-  else if(json_is_array(root)){
-    for(i = 0; i < json_array_size(root); i++) {
-      parse_action(json_array_get(root, i), sub, state);
+  curl_multi_perform(sub->mcurl, &sub->requests_running);
+  if(prev_req_running != sub->requests_running) { //request finished
+    //is there a result available?
+    CURLMsg *msg;
+    int msgs_left=1;
+    msg=curl_multi_info_read(sub->mcurl, &msgs_left);
+    if(msg==NULL) {
+      fprintf(stderr, "curl_multi_info_read() msg is NULL?..\n");
+    } else {
+      result = msg->data.result;
+      if(result != CURLE_OK) {
+        /* if errors have occured, tell us wath's wrong with 'result'*/
+        fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(result));
+      }
+      printf("body:\n %s\n", sub->str.ptr);
+      
+      root = json_loadb(sub->str.ptr, sub->str.len, 0, &error);
+      if(!root) {
+        fprintf(stderr, "error: on line %d: %s\n", error.line, error.text);
+      }
+      else {
+        if(json_is_object(root)) {
+          parse_action(root, sub, state);
+        }
+        else if(json_is_array(root)){
+          for(i = 0; i < json_array_size(root); i++) {
+            parse_action(json_array_get(root, i), sub, state);
+          }
+        }
+        json_decref(root);
+      }
     }
   }
-  json_decref(root);
+  if(sub->requests_running==0) {
+    curl_easy_reset(sub->curl);
+    free(sub->str.ptr);
+    init_string(&sub->str);
+    setcurlopts(sub);
+    //use all available caching information
+    if(strlen(sub->last_modified)>0) {
+      char last_modified[255];
+      char etag[255];
+      sprintf(last_modified, "If-Modified-Since: %s", sub->last_modified);
+      sprintf(etag, "If-None-Match: %s", sub->etag);
+      headers = curl_slist_append(headers, last_modified);
+      headers = curl_slist_append(headers, etag);
+      curl_easy_setopt(sub->curl, CURLOPT_HTTPHEADER, headers);
+      curl_multi_remove_handle(sub->mcurl, sub->curl);
+      curl_multi_add_handle(sub->mcurl, sub->curl);
+    }
+    
+  }
+  else {
+    usleep(100);
+  }
 }
 
 int action_alert(subscriber_t *sub, json_t *data, state_t *state) {
+  printf("action: alert\n");
   json_t *cur;
   cur = json_object_get(data, "url");
   if(cur==NULL) {
@@ -449,7 +520,10 @@ void parse_action(json_t *data, subscriber_t *sub, state_t *state) {
     fprintf(stderr, "error: data is not an object\n");
     return;
   }
-  action = json_object_get(data, "action");
+  if((action = json_object_get(data, "action"))==NULL) {
+    fprintf(stderr, "error: action parameter missing.");
+    return;
+  }
   while (actions_table[i].action != NULL){
     if (strcmp(actions_table[i].action, json_string_value(action))==0) {
       actions_table[i].func(sub, data, state);

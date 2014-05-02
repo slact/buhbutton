@@ -15,6 +15,20 @@
 #define RAWHID_USAGE_PAGE 0xFFBC
 #define RAWHID_USAGE  0xFFF0
 
+#define LED_OFF 0
+#define LED_ON  1
+#define LED_BLINK 2
+#define LED_PULSE 3
+
+#define MOTOR_OFF 0
+#define MOTOR_ON 1
+#define MOTOR_PULSE 2
+
+#define BUZZER_OFF 0
+#define BUZZER_ON  1
+
+#define NO_PATTERN 0
+
 
 typedef struct {
   char header[5];

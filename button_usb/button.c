@@ -33,6 +33,7 @@
 
 volatile uint8_t do_output=0;
 state_t state;
+int button_down=0;
 uint8_t buffer[64];
 
 void apply_state(state_t *s);
@@ -89,7 +90,7 @@ int main(void)
       handle_rawhid_packet((state_t *)buffer);
     }
     //if time to send output, transmit something interesting
-    if (do_output) {
+    if (do_output==1) {
       usb_rawhid_send((uint8_t *)&state, 50);
       do_output=0;
     }
@@ -105,7 +106,7 @@ ISR(TIMER0_OVF_vect)
   // set the do_output variable every 2 seconds
   if (++count > 122) {
     count = 0;
-    do_output = 1;
+    do_output = 0;
   }
 }
 
@@ -120,34 +121,40 @@ int handle_rawhid_packet(state_t *s) {
 int handle_button(void) {
   if (PINF & (1<<0)) {
     //button unpressed
+    button_down=0;
     if (state.button==1)
       do_output=1;
     state.button=0;
   } else {
-    if (state.button==0)
+    if (button_down==0) {
+      button_down=1;
       do_output=1;
-    state.button=1;
+      state.button=1;
+    }
+    else {
+      state.button=0;
+    }
   }
 }
 
 void apply_state(state_t *s) {
   static uint32_t buzz_count;
-  if (s->led[0]==0)
+  if (s->led[0]==LED_OFF)
     PORTB &= ~(1<<0);
   else
     PORTB |= (1<<0);
   
-  if (s->led[1]==0)
+  if (s->led[1]==LED_OFF)
     PORTB &= ~(1<<1);
   else
     PORTB |= (1<<1);
   
-  if (s->vibrate==0)
+  if (s->vibrate==MOTOR_OFF)
     PORTD &= ~(1<<5);
   else
     PORTD |= (1<<5);
   
-  if (s->buzz==0) {
+  if (s->buzz==BUZZER_OFF) {
     PORTD &= ~(1<<4);
   } else {
     buzz_count++;
