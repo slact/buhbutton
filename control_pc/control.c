@@ -1,19 +1,29 @@
+#define INIT_URL "https://slact.net/hello.json"
+#define MAX_ALERTS 3
+ 
+ 
+#define STATE_IDLE 0
+#define STATE_ALERT 1
+#define STATE_ALERT_URGENT 2
  
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdarg.h>
 #include <stdint.h>
+#include <time.h>
 
 #include <jansson.h>
 #include <curl/curl.h>
 #include "../shared.h"
 
 #if defined(OS_LINUX) || defined(OS_MACOSX)
+#include <unistd.h>
 #include <sys/ioctl.h>
 #include <termios.h>
 #elif defined(OS_WINDOWS)
 #include <conio.h>
+#include <Windows.h>
 #endif
 
 typedef struct {
@@ -32,17 +42,90 @@ struct string {
 
 typedef struct {
   char *action;
-  int (*func)(subscriber_t *sub, json_t *data);
+  int (*func)(subscriber_t *sub, json_t *data, state_t *state);
 } action_table_t;
 
+typedef struct alert_s {
+  char *url;
+  time_t time;
+  struct alert_s *prev;
+  struct alert_s *next;
+} alert_t;
+alert_t  *first_alert, *last_alert;
+int alerts_count;
+int queue_alert(const char *url, time_t time) {
+  if (alerts_count>=MAX_ALERTS) {  
+    fprintf(stderr, "reached MAX_ALERTS of %i\n", MAX_ALERTS);
+    return 1;
+  }
+  alert_t *new_alert;
+  if((new_alert=malloc(sizeof(alert_t)))==NULL) {
+    fprintf(stderr, "can't allocate memory for new alert\n");
+    return 1;
+  }
+  if((new_alert->url=malloc(strlen(url)+1))==NULL) {
+    fprintf(stderr, "can't allocate memory for new alert url\n");
+    return 1;
+  }
+  strcpy(new_alert->url, url);
+  new_alert->time=time;
+  new_alert->prev=last_alert;
+  new_alert->next=NULL;
+  if(first_alert==NULL) {
+    first_alert=new_alert;
+  }
+  if(last_alert!=NULL) {
+    last_alert->next=new_alert;
+  }
+  last_alert=new_alert;
+  alerts_count++;
+  return 0;
+}
 
+int free_alert(alert_t *alt) {
+  if (alt==NULL)
+    return 1;
+  if(alt==first_alert) {
+    first_alert=alt->next;
+  }
+  if(alt==last_alert) {
+    last_alert=alt->prev;
+  }
+  if (alt->prev!=NULL) {
+    alt->prev->next=alt->next;
+  }
+  if (alt->next!=NULL) {
+    alt->next->prev=alt->prev;
+  }
+  free(alt->url);
+  free(alt);
+  alerts_count--;
+  return 0;
+}
+void dump_alerts() {
+  alert_t *cur=first_alert;
+  int i=0;
+  printf("Listing %i alert(s):\n", alerts_count);
+  while(cur!=NULL) {
+    printf("%i: %s (%ld)", i+1, cur->url, cur->time);
+    cur=cur->next;
+  }
+}
 
-int action_alert(subscriber_t *sub, json_t *data);
+int action_alert(subscriber_t *sub, json_t *data, state_t *state);
 
 action_table_t actions_table[] = {
   {"alert", &action_alert},
   {NULL}
 };
+
+#if defined(OS_LINUX)
+  #define OPENURL_COMMAND_FORMAT "xdg-open \"%s\""
+#elif defined(OS_MACOSX)
+  #define OPENURL_COMMAND_FORMAT "open \"%s\""
+#elif defined(OS_WINDOWS)
+  #define OPENURL_COMMAND_FORMAT "explorer \"%s\""
+#endif
 
 void init_string(struct string *s) {
   s->len = 0;
@@ -72,48 +155,63 @@ size_t writefunc(void *ptr, size_t size, size_t nmemb, struct string *s)
 
 #include "hid.h"
 void print_state(state_t *state);
-void handle_packet(state_t *pkt);
+void handle_button_press(state_t *pkt);
 void debug_control(state_t *st);
 static char get_keystroke(void);
 void subscriber_init(subscriber_t *sub);
-void subscriber_check(subscriber_t *sub);
-void parse_action(json_t *data, subscriber_t *sub);
+void subscriber_check(subscriber_t *sub, state_t *state);
+void parse_action(json_t *data, subscriber_t *sub, state_t *state);
+void set_state(state_t *st, int state);
 state_t state;
 
+int send_state; //send state packet to button? 0:no, 1:yes
 int main()
 {
+  alerts_count=0;
+  send_state=0;
+  
   subscriber_t sub;
   memset(&sub, '\0', sizeof(sub));
-  strcpy(sub.init_url, "https://slact.net/foo.json");
+  strcpy(sub.init_url, INIT_URL);
   subscriber_init(&sub);
+  first_alert=NULL;
+  last_alert=NULL;
   
-  int r, num;
+  int r=0, num;
   char buf[64];
   state_t *pkt;
 
-  r = rawhid_open(1, VENDOR_ID, PRODUCT_ID, RAWHID_USAGE_PAGE, RAWHID_USAGE);
-  if (r <= 0) {
-    printf("no rawhid device found\n");
-    return -1;
-  }
-  printf("found rawhid device\n");
-
   while (1) {
-    // check if any Raw HID state_t has arrived
-    num = rawhid_recv(0, buf, 64, 220);
-    if (num < 0) {
-      printf("\nerror reading, device went offline\n");
-      rawhid_close(0);
-      return 0;
+    subscriber_check(&sub, &state);
+    if (r <= 0) {
+      r = rawhid_open(1, VENDOR_ID, PRODUCT_ID, RAWHID_USAGE_PAGE, RAWHID_USAGE);
+      sleep(2);
     }
-    if (num > 0) {
-      pkt = (state_t *)&buf;
-      printf("Received packet\n");
-      print_state(pkt);
-      handle_packet(pkt);
+    else {
+      // check if any Raw HID state_t has arrived
+      num = rawhid_recv(0, buf, 64, 220);
+      if (num < 0) {
+        printf("\nerror reading, device went offline\n");
+        rawhid_close(0);
+        r=0;
+      }
+      if (num > 0) {
+        pkt = (state_t *)&buf;
+        printf("Received packet\n");
+        print_state(pkt);
+        if (pkt->button>0) {
+          handle_button_press(pkt);
+        }
+        memcpy(&state, pkt, sizeof(state));
+      }
+      debug_control(pkt);
+      if(send_state==1) {
+        send_state=0;
+        rawhid_send(0, &state, 64, 100);
+      }
     }
-    subscriber_check(&sub);
-    debug_control(pkt);
+    if(r==0)
+      printf("no button device found\n");
   }
 }
 
@@ -154,14 +252,44 @@ static char get_keystroke(void)
   return 0;
 }
 
-void handle_packet(state_t *pkt) {
+void handle_button_press(state_t *pkt) {
   if (pkt->button==0)
     return;
-  pkt->led[0]=0;
-  pkt->led[1]=0;
-  pkt->vibrate=0;
-  pkt->buzz=0;
-  rawhid_send(0, pkt, 64, 100);
+  alert_t *alert = first_alert;
+  
+  char *cmd=malloc(snprintf(NULL, 0, OPENURL_COMMAND_FORMAT, alert->url) + 1);
+  sprintf(cmd, OPENURL_COMMAND_FORMAT, alert->url);
+  system(cmd);
+  free(cmd);
+  free_alert(alert);
+  set_state(pkt, STATE_IDLE);
+}
+
+void set_state(state_t *st, int state) {
+  switch(state) {
+    case STATE_IDLE:
+      st->led[0]=0;
+      st->led[1]=0;
+      st->vibrate=0;
+      st->pattern=0;
+      st->buzz=0;
+      break;
+    case STATE_ALERT:
+      st->led[0]=1;
+      st->led[1]=1;
+      st->vibrate=0;
+      st->pattern=0;
+      st->buzz=0;
+      break;
+    case STATE_ALERT_URGENT:
+      st->led[0]=1;
+      st->led[1]=1;
+      st->vibrate=1;
+      st->pattern=0;
+      st->buzz=0;
+      break;
+  }
+  send_state=1;
 }
 
 void print_state(state_t *state) {
@@ -254,7 +382,7 @@ void subscriber_init(subscriber_t *sub){
   curl_easy_setopt(sub->curl, CURLOPT_WRITEFUNCTION, writefunc);
 }
 
-void subscriber_check(subscriber_t *sub) {
+void subscriber_check(subscriber_t *sub, state_t *state) {
   struct curl_slist *headers = NULL;
   struct string s;
   CURLcode result;
@@ -284,36 +412,47 @@ void subscriber_check(subscriber_t *sub) {
   printf("body:\n %s\n", s.ptr);
 
   root = json_loadb(s.ptr, s.len, 0, &error);
-  //parse some json
+  if(!root) {
+    fprintf(stderr, "error: on line %d: %s\n", error.line, error.text);
+    return;
+  }
   if(json_is_object(root)) {
     fprintf(stderr, "error: root is not an array\n");
-    parse_action(root, sub);
+    parse_action(root, sub, state);
     json_decref(root);
     return;
   }
   else if(json_is_array(root)){
     for(i = 0; i < json_array_size(root); i++) {
-      parse_action(json_array_get(root, i), sub);
+      parse_action(json_array_get(root, i), sub, state);
     }
   }
   json_decref(root);
 }
 
-int action_alert(subscriber_t *sub, json_t *data) {
+int action_alert(subscriber_t *sub, json_t *data, state_t *state) {
+  json_t *cur;
+  cur = json_object_get(data, "url");
+  if(cur==NULL) {
+    fprintf(stderr, "error: alert url not found\n");
+    return 1;
+  }
+  queue_alert(json_string_value(cur), 0);
+  set_state(state, alerts_count==1 ? STATE_ALERT : STATE_ALERT_URGENT);
   return 0;
 }
 
-void parse_action(json_t *data, subscriber_t *sub) {
+void parse_action(json_t *data, subscriber_t *sub, state_t *state) {
   json_t *action;
   int i=0;
   if(!json_is_object(data)) {
-    fprintf(stderr, "error: data is not an onject\n");
+    fprintf(stderr, "error: data is not an object\n");
     return;
   }
   action = json_object_get(data, "action");
   while (actions_table[i].action != NULL){
-    if (strcmp(actions_table[i].action, json_string_value(action))) {
-      actions_table[i].func(sub, data);
+    if (strcmp(actions_table[i].action, json_string_value(action))==0) {
+      actions_table[i].func(sub, data, state);
     }
     i++;
   }

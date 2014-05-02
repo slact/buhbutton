@@ -30,7 +30,7 @@ TARGET = $(PROG).exe
 CC = i686-w64-mingw32-gcc
 STRIP = i686-w64-mingw32-strip
 CFLAGS = -Wall -O2 -DOS_$(OS)
-LIBS = -lhid -lsetupapi -lcurl -lyaml
+LIBS = -lhid -lsetupapi -lcurl -ljansson
 endif
 
 OBJS = $(PROG).o hid.o
