@@ -32,7 +32,11 @@
 #define CPU_PRESCALE(n)  (CLKPR = 0x80, CLKPR = (n))
 
 volatile uint8_t do_output=0;
-state_t state;
+volatile uint8_t led1_fade=0;
+volatile uint8_t motor_led1_fade_thresh=0;
+volatile uint8_t led2_fade=0;
+
+volatile state_t state;
 int button_down=0;
 uint8_t buffer[64];
 
@@ -46,8 +50,8 @@ int main(void)
   uint8_t i;
   uint16_t val, count=0;
   memset(&state, '\0', sizeof(state));
-  strcpy(&state.header, "FOO");
-  strcpy(&state.footer, "BAR");
+  //strcpy(&state.header, "FOO");
+  //strcpy(&state.footer, "BAR");
   
   // Configure all port F pins as inputs with pullup resistors
   // http://www.pjrc.com/teensy/pins.html
@@ -101,12 +105,60 @@ int main(void)
 // This interrupt routine is run approx 61 times per second.
 ISR(TIMER0_OVF_vect)
 {
-  static uint8_t count=0;
-
-  // set the do_output variable every 2 seconds
-  if (++count > 122) {
-    count = 0;
-    do_output = 0;
+  static int prev_pattern;
+  static int8_t fade_dir=1;
+  static uint16_t count=0;
+  count++;
+  switch(state.pattern){
+    case LED_FADE_IN:
+      if(prev_pattern!=LED_FADE_IN) {
+        led1_fade=0; led2_fade=0;
+      }
+      if(led1_fade<255)
+        led1_fade++;
+      if(led2_fade<255)
+        led2_fade++;
+      if(led1_fade==255 && led2_fade==255)
+        state.pattern=NO_PATTERN;
+      break;
+    case LED_FADE_OUT:
+      if(led1_fade>0)
+        led1_fade--;
+      if(led2_fade>0)
+        led2_fade++;
+      if(led1_fade==0 && led2_fade==0)
+        state.pattern=NO_PATTERN;
+      break;
+    case LED_BLINK:
+      if(count%60==0) {
+        led1_fade = led1_fade==0 ? 255 : 0;
+        led2_fade = led2_fade==0 ? 255 : 0;
+      }
+      break;
+    case  LED_PULSE:
+      motor_led1_fade_thresh = 200 - state.pattern_speed*3;
+      if (led1_fade>=256-state.pattern_speed)
+        fade_dir=-1;
+      else if (led1_fade<state.pattern_speed)
+        fade_dir=1;
+      led1_fade+= fade_dir*state.pattern_speed;
+      led2_fade=led1_fade;
+      break;
+    case NO_PATTERN:
+      led1_fade=1;
+      led2_fade=1;
+      break;
+    default:
+      led1_fade=150;
+      led2_fade=150;
+      break;
+   
+  }
+  state.led_fade[0]=led1_fade;
+  state.led_fade[1]=led1_fade;
+  prev_pattern=state.pattern;
+  if (count%500==0) {
+   do_output=1;
   }
 }
 
@@ -141,18 +193,29 @@ void apply_state(state_t *s) {
   static uint32_t buzz_count;
   if (s->led[0]==LED_OFF)
     PORTB &= ~(1<<0);
-  else
-    PORTB |= (1<<0);
-  
+  else {
+    if(rand() % 255 < led1_fade)
+      PORTB |= (1<<0);
+    else
+      PORTB &= ~(1<<0);
+  }
   if (s->led[1]==LED_OFF)
     PORTB &= ~(1<<1);
-  else
-    PORTB |= (1<<1);
+  else{
+    if(rand() % 255 < led2_fade)
+      PORTB |= (1<<1);
+    else
+      PORTB &= ~(1<<1);
+  }
   
   if (s->vibrate==MOTOR_OFF)
     PORTD &= ~(1<<5);
-  else
-    PORTD |= (1<<5);
+  else {//pulse motor
+    if (motor_led1_fade_thresh>0 && led1_fade >= motor_led1_fade_thresh) 
+      PORTD |= (1<<5);
+    else
+      PORTD &= ~(1<<5);
+  }
   
   if (s->buzz==BUZZER_OFF) {
     PORTD &= ~(1<<4);

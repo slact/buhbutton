@@ -17,8 +17,7 @@
 
 #define LED_OFF 0
 #define LED_ON  1
-#define LED_BLINK 2
-#define LED_PULSE 3
+
 
 #define MOTOR_OFF 0
 #define MOTOR_ON 1
@@ -28,16 +27,23 @@
 #define BUZZER_ON  1
 
 #define NO_PATTERN 0
+#define LED_FADE_IN 1
+#define LED_FADE_OUT 2
+#define LED_BLINK 3
+#define LED_STROBE 4
+#define LED_PULSE 5
 
 
 typedef struct {
-  char header[5];
+  //char header[5];
   uint8_t button;
   uint8_t led[2];
+  uint8_t led_fade[2];
   uint8_t vibrate;
   uint8_t pattern;
+  uint8_t pattern_speed;
   uint8_t buzz;
-  char footer[5];
+  //char footer[5];
 } state_t;
 
 STATIC_ASSERT(sizeof(state_t) < 64, "Packet cannot exceed 64 bytes.");

@@ -1,5 +1,5 @@
 #define INIT_URL "https:/localhost:9092/hello"
-#define MAX_ALERTS 3
+#define MAX_ALERTS 20
  
  
 #define STATE_IDLE 0
@@ -204,6 +204,7 @@ int main(int argc, char *argv[]){
 
   while (1) {
     subscriber_check(&sub, &state);
+    debug_control(pkt);
     if (r <= 0) {
       r = rawhid_open(1, VENDOR_ID, PRODUCT_ID, RAWHID_USAGE_PAGE, RAWHID_USAGE);
       if (r > 0){
@@ -228,9 +229,10 @@ int main(int argc, char *argv[]){
           handle_button_press(pkt);
         }
       }
-      //debug_control(pkt);
       if(send_state==1) {
         send_state=0;
+        printf("Sending packet\n");
+        print_state(&state);
         rawhid_send(0, &state, 64, 100);
       }
     }
@@ -311,38 +313,40 @@ void set_state(state_t *st, int state) {
       st->led[0]=LED_OFF;
       st->led[1]=LED_OFF;
       st->vibrate=MOTOR_OFF;
-      st->pattern=NO_PATTERN;
+      st->pattern=LED_FADE_OUT;
       st->buzz=BUZZER_OFF;
       break;
     case STATE_ALERT:
-      st->led[0]=LED_ON;
-      st->led[1]=LED_ON;
+      st->led[0]=4;
+      st->led[1]=7;
       st->vibrate=MOTOR_OFF;
-      st->pattern=NO_PATTERN;
+      st->pattern=LED_PULSE;
       st->buzz=BUZZER_OFF;
       break;
     case STATE_ALERT_URGENT:
-      st->led[0]=LED_ON;
-      st->led[1]=LED_ON;
+      st->led[0]=3;
+      st->led[1]=3;
       st->vibrate=MOTOR_ON;
-      st->pattern=NO_PATTERN;
+      st->pattern=LED_PULSE;
       st->buzz=BUZZER_OFF;
       break;
   }
+  st->pattern_speed=alerts_count == 0 ? 1 : alerts_count*5;
   send_state=1;
 }
 
 void print_state(state_t *state) {
-  printf("Header: %s\n", state->header);
+  //printf("Header: %s\n", state->header);led1_fade=255;
   printf("LED1: %i LED2: %i\n", state->led[0], state->led[1]);
+  printf("LED1fade: %i LED2fade: %i\n", state->led_fade[0], state->led_fade[1]);
   printf("Vibrate: %i\n", state->vibrate);
-  printf("Pattern: %i\n", state->pattern);
+  printf("Pattern: %i speed %i\n", state->pattern, state->pattern_speed);
   if (state->buzz == 0)
     printf("Buzzer: off\n");
   else
     printf("Buzzer: %i, buggy freq guess: %dHz\n", state->buzz, 16000000/state->buzz);
   printf("Button: %i\n", state->button);
-  printf("Footer: %s\n", state->footer);
+  //printf("Footer: %s\n", state->footer);
   printf("Size: %zu bytes\n", sizeof(*state));
   printf("\n");
 }
@@ -352,9 +356,9 @@ void debug_control(state_t *st) {
   // check if any input on stdin
   while ((c = get_keystroke()) >= 32) {
     if (c=='1')
-      st->led[0]=1;
+      st->led[0]++;
     if (c=='2')
-      st->led[1]=1;
+      st->led[1]++;
     if (c=='v')
       st->vibrate=1;
     if (c=='b')
