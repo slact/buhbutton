@@ -323,6 +323,14 @@ void set_state(state_t *st, int state) {
       st->pattern=LED_FADE_OUT;
       st->buzz=BUZZER_OFF;
       break;
+    case STATE_WAITING:
+      st->led[0]=LED_OFF;
+      st->led[1]=LED_OFF;
+      st->vibrate=MOTOR_OFF;
+      st->pattern=LED_BLINK;
+      st->pattern_speed=5;
+      st->buzz=BUZZER_OFF;
+      break;
     case STATE_ALERT:
       st->led[0]=4;
       st->led[1]=7;
