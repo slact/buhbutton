@@ -33,7 +33,7 @@
 
 volatile uint8_t do_output=0;
 volatile uint8_t led1_fade=0;
-volatile uint8_t motor_led1_fade_thresh=0;
+volatile int16_t motor_led1_fade_thresh=0;
 volatile uint8_t led2_fade=0;
 
 volatile state_t state;
@@ -130,13 +130,15 @@ ISR(TIMER0_OVF_vect)
         state.pattern=NO_PATTERN;
       break;
     case LED_BLINK:
-      if(count%60==0) {
+      if(count%(255/state.pattern_speed)==0) {
         led1_fade = led1_fade==0 ? 255 : 0;
         led2_fade = led2_fade==0 ? 255 : 0;
       }
       break;
     case  LED_PULSE:
       motor_led1_fade_thresh = 200 - state.pattern_speed*3;
+      if(motor_led1_fade_thresh<0) 
+        motor_led1_fade_thresh=0;
       if (led1_fade>=256-state.pattern_speed)
         fade_dir=-1;
       else if (led1_fade<state.pattern_speed)
