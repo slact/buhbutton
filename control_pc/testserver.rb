@@ -30,7 +30,7 @@ Cuba.define do
           <body>
             <h2>Submit alert url</h2>
             <form method="post">
-              <input type="text" name="url"></input>
+              <input type="text" name="url" value="https://duckduckgo.com"></input>
               <input type="submit"></input>
             </form>
           </body>
