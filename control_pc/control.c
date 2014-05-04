@@ -58,7 +58,7 @@ typedef struct alert_s {
   struct alert_s *next;
 } alert_t;
 alert_t  *first_alert, *last_alert;
-int alerts_count;
+uint16_t alerts_count;
 int queue_alert(const char *url, time_t time) {
   if (alerts_count>=MAX_ALERTS) {  
     fprintf(stderr, "reached MAX_ALERTS of %i\n", MAX_ALERTS);
@@ -332,6 +332,7 @@ void set_state(state_t *st, int state) {
       st->buzz=BUZZER_OFF;
       break;
     case STATE_ALERT:
+      st->pattern_speed= alerts_count*5<255 ? alerts_count*5: 255;
       st->led[0]=4;
       st->led[1]=7;
       st->vibrate=MOTOR_OFF;
@@ -339,6 +340,7 @@ void set_state(state_t *st, int state) {
       st->buzz=BUZZER_OFF;
       break;
     case STATE_ALERT_URGENT:
+      st->pattern_speed= alerts_count*5<255 ? alerts_count*5: 255;
       st->led[0]=3;
       st->led[1]=3;
       st->vibrate=MOTOR_ON;
@@ -346,7 +348,6 @@ void set_state(state_t *st, int state) {
       st->buzz=BUZZER_OFF;
       break;
   }
-  st->pattern_speed=alerts_count == 0 ? 1 : alerts_count*5;
   send_state=1;
 }
 
@@ -355,7 +356,7 @@ void print_state(state_t *state) {
   printf("LED1: %i LED2: %i\n", state->led[0], state->led[1]);
   printf("LED1fade: %i LED2fade: %i\n", state->led_fade[0], state->led_fade[1]);
   printf("Vibrate: %i\n", state->vibrate);
-  printf("Pattern: %i speed %i\n", state->pattern, state->pattern_speed);
+  printf("Pattern: %i speed %i threshold %i\n", state->pattern, state->pattern_speed, state->pattern_threshold);
   if (state->buzz == 0)
     printf("Buzzer: off\n");
   else

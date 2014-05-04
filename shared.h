@@ -42,6 +42,7 @@ typedef struct {
   uint8_t vibrate;
   uint8_t pattern;
   uint8_t pattern_speed;
+  uint8_t pattern_threshold;
   uint8_t buzz;
   //char footer[5];
 } state_t;
