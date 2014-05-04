@@ -5,6 +5,7 @@
 #define STATE_IDLE 0
 #define STATE_ALERT 1
 #define STATE_ALERT_URGENT 2
+#define STATE_WAITING 3
  
 #include <stdio.h>
 #include <string.h>
@@ -16,6 +17,8 @@
 #include <jansson.h>
 #include <curl/curl.h>
 #include "../shared.h"
+
+#include "hid.h"
 
 #if defined(OS_LINUX) || defined(OS_MACOSX)
 #include <unistd.h>
@@ -174,7 +177,6 @@ size_t setheaderfunc( void *ptr, size_t size, size_t nmemb, void *userdata){
 }
 
 
-#include "hid.h"
 void print_state(state_t *state);
 void handle_button_press(state_t *pkt);
 void debug_control(state_t *st);
