@@ -245,7 +245,7 @@ int main(int argc, char *argv[]){
     }
     if(r==0) {
       printf("no button device found\n");
-      usleep(100);
+      sleep(1);
     }
   }
 }
