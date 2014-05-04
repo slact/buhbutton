@@ -211,7 +211,12 @@ int main(int argc, char *argv[]){
       r = rawhid_open(1, VENDOR_ID, PRODUCT_ID, RAWHID_USAGE_PAGE, RAWHID_USAGE);
       if (r > 0){
         //initialize button in idle state
-        set_state(&state, STATE_IDLE);
+        if (alerts_count==0)
+          set_state(&state, STATE_IDLE);
+        else if(alerts_count==1)
+          set_state(&state, STATE_ALERT);
+        else if(alerts_count>1)
+          set_state(&state, STATE_ALERT_URGENT);
       }
     }
     else {
