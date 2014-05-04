@@ -224,7 +224,7 @@ int main(int argc, char *argv[]){
       num = rawhid_recv(0, buf, 64, 220);
       if (num < 0) {
         printf("\nerror reading, device went offline\n");
-        rawhid_close(0);
+        //free_all_hid();
         r=0;
       }
       if (num > 0) {
