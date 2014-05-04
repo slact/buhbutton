@@ -206,7 +206,7 @@ int main(int argc, char *argv[]){
 
   while (1) {
     subscriber_check(&sub, &state);
-    debug_control(pkt);
+    debug_control(&state);
     if (r <= 0) {
       r = rawhid_open(1, VENDOR_ID, PRODUCT_ID, RAWHID_USAGE_PAGE, RAWHID_USAGE);
       if (r > 0){
