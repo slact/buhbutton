@@ -30,6 +30,8 @@
 #include "usb_rawhid.h"
 #include "analog.h"
 
+#include "effects.c"
+
 #define CPU_PRESCALE(n)  (CLKPR = 0x80, CLKPR = (n))
 
 
@@ -48,7 +50,7 @@ uint8_t badrand()
 
 volatile uint8_t do_output=0;
 volatile uint8_t led1_fade=0;
-volatile int16_t motor_led1_fade_thresh=0;
+volatile uint8_t motor_fade=0;
 volatile uint8_t led2_fade=0;
 
 volatile state_t state;
@@ -133,45 +135,33 @@ int main(void)
 ISR(TIMER0_OVF_vect)
 {
   static int prev_pattern;
-  static int8_t fade_dir=1;
+  static int8_t fade_dir[2]={1,1};
   static uint16_t count=0;
+  static wf_state_t wfs[3];
   count++;
   switch(state.pattern){
     case LED_FADE_IN:
-      if(prev_pattern!=LED_FADE_IN) {
-        led1_fade=0; led2_fade=0;
-      }
-      if(led1_fade<255)
-        led1_fade++;
-      if(led2_fade<255)
-        led2_fade++;
-      if(led1_fade==255 && led2_fade==255)
         state.pattern=NO_PATTERN;
       break;
     case LED_FADE_OUT:
-      if(led1_fade>0)
-        led1_fade--;
-      if(led2_fade>0)
-        led2_fade++;
-      if(led1_fade==0 && led2_fade==0)
         state.pattern=NO_PATTERN;
       break;
     case LED_BLINK:
-      if(count%(255/state.pattern_speed)==0) {
-        led1_fade = led1_fade==0 ? 255 : 0;
-        led2_fade = led2_fade==0 ? 255 : 0;
-      }
+      led1_fade=wf_square(&wfs[1], state.pattern_speed);
+      led2_fade=led1_fade;
       break;
     case  LED_PULSE:
-      motor_led1_fade_thresh = 200 - state.pattern_speed*3;
-      if(motor_led1_fade_thresh<0) 
-        motor_led1_fade_thresh=0;
-      if (led1_fade>=256-state.pattern_speed)
-        fade_dir=-1;
-      else if (led1_fade<state.pattern_speed)
-        fade_dir=1;
-      led1_fade+= fade_dir*state.pattern_speed;
-      led2_fade=led1_fade;
+      if(prev_pattern!=LED_PULSE) {
+        led1_fade=0; led2_fade=0, motor_fade=0;
+      }
+      wfs[2].threshold = 254 - state.pattern_speed*3;
+      if (wfs[2].threshold < 30)
+        wfs[2].threshold=29;
+
+      led1_fade=wf_cos(&wfs[0], state.pattern_speed);
+      led2_fade=wf_cos(&wfs[1], state.pattern_speed);
+      motor_fade=wf_square(&wfs[2], state.pattern_speed);
+
       break;
     case NO_PATTERN:
       led1_fade=1;
@@ -197,16 +187,22 @@ ISR (TIMER1_COMPA_vect)
   count++;
   //count=badrand();
   if (state.led[0]!=LED_OFF) {
-    if(count % 255 < led1_fade)
+    if(count < led1_fade)
       PORTB |= (1<<0);
     else
       PORTB &= ~(1<<0);
   }
   if (state.led[1]!=LED_OFF) {
-    if(count % 255 < led2_fade)
+    if(count < led2_fade)
       PORTB |= (1<<1);
     else
       PORTB &= ~(1<<1);
+  }
+  if (state.vibrate != 0) {
+    if(count < motor_fade)
+      PORTD |= (1<<5);
+    else
+      PORTD &= ~(1<<5);
   }
 }
 
@@ -242,23 +238,12 @@ void apply_state(volatile state_t *s) {
   static uint32_t buzz_count;
   if (s->led[0]==LED_OFF)
     PORTB &= ~(1<<0);
-  else {
-    //handled via the Effects timer (TIMER1)
-  }
+
   if (s->led[1]==LED_OFF)
     PORTB &= ~(1<<1);
-  else{
-    //handled via the Effects timer (TIMER1)
-  }
   
   if (s->vibrate==MOTOR_OFF)
     PORTD &= ~(1<<5);
-  else {//pulse motor
-    if (motor_led1_fade_thresh>0 && led1_fade >= motor_led1_fade_thresh) 
-      PORTD |= (1<<5);
-    else
-      PORTD &= ~(1<<5);
-  }
   
   if (s->buzz==BUZZER_OFF) {
     PORTD &= ~(1<<4);
