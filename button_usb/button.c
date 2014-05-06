@@ -32,6 +32,20 @@
 
 #define CPU_PRESCALE(n)  (CLKPR = 0x80, CLKPR = (n))
 
+
+//X ABC Algorithm Random Number Generator for 8-Bit Devices:
+// posted by EternityForest on http://www.electro-tech-online.com/threads/ultra-fast-pseudorandom-number-generator-for-8-bit.124249/
+uint8_t rng_a, rng_b, rng_c;
+uint8_t badrand()
+{
+  static uint8_t rng_x;
+  rng_x++; //x is incremented every round and is not affected by any other variable
+  rng_a = (rng_a^rng_c^rng_x);       //note the mix of addition and XOR
+  rng_b = (rng_b+rng_a);         //And the use of very few instructions
+  rng_c = (rng_c+((rng_b>>1)^rng_a));  //the right shift is to ensure that high-order bits from b can affect  
+  return(rng_c);          //low order bits of other variables
+}
+
 volatile uint8_t do_output=0;
 volatile uint8_t led1_fade=0;
 volatile int16_t motor_led1_fade_thresh=0;
@@ -181,6 +195,7 @@ ISR (TIMER1_COMPA_vect)
 {
   static uint8_t count;
   count++;
+  //count=badrand();
   if (state.led[0]!=LED_OFF) {
     if(count % 255 < led1_fade)
       PORTB |= (1<<0);
