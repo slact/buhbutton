@@ -49,6 +49,7 @@ int main(void)
   int8_t r;
   uint8_t i;
   uint16_t val, count=0;
+  cli();
   memset(&state, '\0', sizeof(state));
   //strcpy(&state.header, "FOO");
   //strcpy(&state.footer, "BAR");
@@ -85,7 +86,20 @@ int main(void)
   TCCR0A = 0x00;
   TCCR0B = 0x05;
   TIMSK0 = (1<<TOIE0);
+  
+  
+  //timer 1 -- effects timer?...
+  // set up timer with prescaler = 64 and CTC mode
+  TCCR1B |= (1 << WGM12)|(1 << CS10);
+  // initialize counter
+  TCNT1 = 0;
+  // enable compare interrupt
+  TIMSK1 |= (1 << OCIE1A);
+  // initialize compare value
+  OCR1A = 100;
 
+  
+  sei();
   while (1) {
     handle_button();
     //if received data, do something with it
@@ -164,6 +178,24 @@ ISR(TIMER0_OVF_vect)
   }
 }
 
+ISR (TIMER1_COMPA_vect)
+{
+  static uint8_t count;
+  count++;
+  if (state.led[0]!=LED_OFF) {
+    if(count % 255 < led1_fade)
+      PORTB |= (1<<0);
+    else
+      PORTB &= ~(1<<0);
+  }
+  if (state.led[1]!=LED_OFF) {
+    if(count % 255 < led2_fade)
+      PORTB |= (1<<1);
+    else
+      PORTB &= ~(1<<1);
+  }
+}
+
 int handle_rawhid_packet(state_t *s) {
   uint8_t btn = state.button;
   memcpy(&state, s, sizeof(*s));
@@ -196,18 +228,12 @@ void apply_state(state_t *s) {
   if (s->led[0]==LED_OFF)
     PORTB &= ~(1<<0);
   else {
-    if(rand() % 255 < led1_fade)
-      PORTB |= (1<<0);
-    else
-      PORTB &= ~(1<<0);
+    //handled via the Effects timer (TIMER1)
   }
   if (s->led[1]==LED_OFF)
     PORTB &= ~(1<<1);
   else{
-    if(rand() % 255 < led2_fade)
-      PORTB |= (1<<1);
-    else
-      PORTB &= ~(1<<1);
+    //handled via the Effects timer (TIMER1)
   }
   
   if (s->vibrate==MOTOR_OFF)
