@@ -21,6 +21,7 @@
  * THE SOFTWARE.
  */
 
+#include <string.h>
 #include <avr/io.h>
 #include <avr/pgmspace.h>
 #include <avr/interrupt.h>
@@ -40,17 +41,15 @@ volatile state_t state;
 volatile int button_down=0;
 uint8_t buffer[64];
 
-void apply_state(state_t *s);
+void apply_state(volatile state_t *s);
 int handle_rawhid_packet(state_t *buffer);
 int handle_button(void);
 
 int main(void)
 {
   int8_t r;
-  uint8_t i;
-  uint16_t val, count=0;
-  cli();
-  memset(&state, '\0', sizeof(state));
+  cli(); //suspend interrupts
+  memset((void *)&state, '\0', sizeof(state));
   //strcpy(&state.header, "FOO");
   //strcpy(&state.footer, "BAR");
   
@@ -99,7 +98,7 @@ int main(void)
   OCR1A = 100;
 
   
-  sei();
+  sei(); //resume interrupts
   while (1) {
     handle_button();
     //if received data, do something with it
@@ -198,7 +197,7 @@ ISR (TIMER1_COMPA_vect)
 
 int handle_rawhid_packet(state_t *s) {
   uint8_t btn = state.button;
-  memcpy(&state, s, sizeof(*s));
+  memcpy((void *)&state, s, sizeof(*s));
   state.button=btn;
   do_output=1;
   return 0;
@@ -221,9 +220,10 @@ int handle_button(void) {
       state.button=0;
     }
   }
+  return 0;
 }
 
-void apply_state(state_t *s) {
+void apply_state(volatile state_t *s) {
   static uint32_t buzz_count;
   if (s->led[0]==LED_OFF)
     PORTB &= ~(1<<0);
