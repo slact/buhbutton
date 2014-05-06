@@ -37,7 +37,7 @@ volatile int16_t motor_led1_fade_thresh=0;
 volatile uint8_t led2_fade=0;
 
 volatile state_t state;
-int button_down=0;
+volatile int button_down=0;
 uint8_t buffer[64];
 
 void apply_state(state_t *s);
