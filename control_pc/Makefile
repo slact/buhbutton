@@ -40,7 +40,7 @@ all: $(TARGET)
 
 $(PROG): $(OBJS)
 	$(CC) -o $(PROG) $(OBJS) $(LIBS)
-	$(STRIP) $(PROG)
+
 
 $(PROG).exe: $(PROG)
 	cp $(PROG) $(PROG).exe

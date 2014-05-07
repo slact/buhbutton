@@ -34,20 +34,6 @@
 
 #define CPU_PRESCALE(n)  (CLKPR = 0x80, CLKPR = (n))
 
-
-//X ABC Algorithm Random Number Generator for 8-Bit Devices:
-// posted by EternityForest on http://www.electro-tech-online.com/threads/ultra-fast-pseudorandom-number-generator-for-8-bit.124249/
-uint8_t rng_a, rng_b, rng_c;
-uint8_t badrand()
-{
-  static uint8_t rng_x;
-  rng_x++; //x is incremented every round and is not affected by any other variable
-  rng_a = (rng_a^rng_c^rng_x);       //note the mix of addition and XOR
-  rng_b = (rng_b+rng_a);         //And the use of very few instructions
-  rng_c = (rng_c+((rng_b>>1)^rng_a));  //the right shift is to ensure that high-order bits from b can affect  
-  return(rng_c);          //low order bits of other variables
-}
-
 volatile uint8_t do_output=0;
 volatile uint8_t led1_fade=0;
 volatile uint8_t motor_fade=0;
@@ -111,7 +97,7 @@ int main(void)
   // enable compare interrupt
   TIMSK1 |= (1 << OCIE1A);
   // initialize compare value
-  OCR1A = 100;
+  OCR1A = 200;
 
   
   sei(); //resume interrupts
@@ -135,9 +121,18 @@ int main(void)
 ISR(TIMER0_OVF_vect)
 {
   static int prev_pattern;
-  static int8_t fade_dir[2]={1,1};
   static uint16_t count=0;
   static wf_state_t wfs[3];
+  wfs[2].waveform=&wf_square;
+  
+  static wf_state_t wfs_busy[2];
+  wfs_busy[0].waveform=&wf_cos;
+  wfs_busy[0].downscale=5;
+  wfs_busy[0].step_multiplier=50;
+  wfs_busy[1].waveform=&wf_cos;
+  wfs_busy[1].downscale=5;
+  wfs_busy[1].step_multiplier=50;
+  
   count++;
   switch(state.pattern){
     case LED_FADE_IN:
@@ -147,20 +142,25 @@ ISR(TIMER0_OVF_vect)
         state.pattern=NO_PATTERN;
       break;
     case LED_BLINK:
-      led1_fade=wf_square(&wfs[1], state.pattern_speed);
+      wfs[0].waveform=wf_square;
+      led1_fade=waveform(&wfs[0], state.pattern_speed);
       led2_fade=led1_fade;
       break;
     case  LED_PULSE:
       if(prev_pattern!=LED_PULSE) {
-        led1_fade=0; led2_fade=0, motor_fade=0;
+        wfs[0].waveform=wf_cos;
+        wfs[1].waveform=wf_cos;
+        //wfs[0].subwave=&wfs_busy[0];
+        //wfs[1].subwave=&wfs_busy[1];
+
       }
       wfs[2].threshold = 254 - state.pattern_speed*3;
       if (wfs[2].threshold < 30)
         wfs[2].threshold=29;
 
-      led1_fade=wf_cos(&wfs[0], state.pattern_speed);
-      led2_fade=wf_cos(&wfs[1], state.pattern_speed);
-      motor_fade=wf_square(&wfs[2], state.pattern_speed);
+      led1_fade=waveform(&wfs[0], state.pattern_speed);
+      led2_fade=waveform(&wfs[1], state.pattern_speed);
+      motor_fade=waveform(&wfs[2], state.pattern_speed);
 
       break;
     case NO_PATTERN:
@@ -176,7 +176,7 @@ ISR(TIMER0_OVF_vect)
   state.led_fade[0]=led1_fade;
   state.led_fade[1]=led1_fade;
   prev_pattern=state.pattern;
-  if (count%500==0) {
+  if (count%680==0) {
    do_output=1;
   }
 }
@@ -185,7 +185,7 @@ ISR (TIMER1_COMPA_vect)
 {
   static uint8_t count;
   count++;
-  //count=badrand();
+  // count=badrand();
   if (state.led[0]!=LED_OFF) {
     if(count < led1_fade)
       PORTB |= (1<<0);
@@ -245,18 +245,6 @@ void apply_state(volatile state_t *s) {
   if (s->vibrate==MOTOR_OFF)
     PORTD &= ~(1<<5);
   
-  if (s->buzz==BUZZER_OFF) {
+  if (s->buzz==BUZZER_OFF)
     PORTD &= ~(1<<4);
-  } else {
-    buzz_count++;
-    if (buzz_count < s->buzz/2 ) {
-      PORTD &= ~(1<<4);
-    }
-    else if (buzz_count < s->buzz) {
-      PORTD |= (1<<4);
-    }
-    else if (buzz_count >= s->buzz) {
-      buzz_count=0;
-    }
-  }
 }
