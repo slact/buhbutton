@@ -332,7 +332,7 @@ void set_state(state_t *st, int state) {
       st->buzz=BUZZER_OFF;
       break;
     case STATE_ALERT:
-      st->pattern_speed= alerts_count*5<255 ? alerts_count*5: 255;
+      st->pattern_speed= alerts_count*2<255 ? alerts_count*2: 255;
       st->led[0]=4;
       st->led[1]=7;
       st->vibrate=MOTOR_OFF;
@@ -340,7 +340,7 @@ void set_state(state_t *st, int state) {
       st->buzz=BUZZER_OFF;
       break;
     case STATE_ALERT_URGENT:
-      st->pattern_speed= alerts_count*5<255 ? alerts_count*5: 255;
+      st->pattern_speed= alerts_count*2<255 ? alerts_count*2: 255;
       st->led[0]=3;
       st->led[1]=3;
       st->vibrate=MOTOR_ON;
