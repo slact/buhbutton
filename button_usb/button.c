@@ -36,7 +36,7 @@
 
 volatile uint8_t do_output=0;
 volatile uint8_t led1_fade=0;
-volatile uint8_t motor_fade=0;
+volatile int8_t motor_fade=0;
 volatile uint8_t led2_fade=0;
 
 volatile state_t state;
@@ -154,13 +154,13 @@ ISR(TIMER0_OVF_vect)
         //wfs[1].subwave=&wfs_busy[1];
 
       }
-      wfs[2].threshold = 254 - state.pattern_speed*3;
-      if (wfs[2].threshold < 30)
+      wfs[2].threshold = INT8_MAX - state.pattern_speed*3;
+      if (wfs[2].threshold < -140)
         wfs[2].threshold=29;
 
-      led1_fade=waveform(&wfs[0], state.pattern_speed);
-      led2_fade=waveform(&wfs[1], state.pattern_speed);
-      motor_fade=waveform(&wfs[2], state.pattern_speed);
+      led1_fade=(uint8_t) ((uint16_t) waveform(&wfs[0], state.pattern_speed)+127);
+      led2_fade=(uint8_t) ((uint16_t) waveform(&wfs[1], state.pattern_speed)+127);
+      motor_fade=(uint8_t) ((uint16_t) waveform(&wfs[2], state.pattern_speed)+127);
 
       break;
     case NO_PATTERN:

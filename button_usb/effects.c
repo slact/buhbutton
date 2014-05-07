@@ -1,25 +1,25 @@
 typedef struct wf_state_s {
-  uint8_t t[2];
-  uint8_t threshold;
+  int8_t t[2];
+  int8_t threshold;
   uint8_t invert:1;
-  uint8_t (*waveform)(struct wf_state_s *, uint8_t);
-  uint8_t offset;
+  int8_t (*waveform)(struct wf_state_s *, uint8_t);
+  int8_t offset;
   uint8_t downscale; // waveform / scale
   uint8_t step_multiplier; // step multiplier
   struct wf_state_s *subwave;
 } wf_state_t;
 
 uint8_t clip_overflow(uint16_t n) {
-  if (n > 255) //overflow
-    return 255;
-  else if(n < 0) //underflow
-    return 0;
+  if (n > INT8_MAX) //overflow
+    return INT8_MAX;
+  else if(n < INT8_MIN) //underflow
+    return INT8_MIN;
   else
-    return (uint8_t) n;
+    return (int8_t) n;
 }
 
-uint8_t waveform(wf_state_t *wfs, uint8_t step) {
-  uint8_t res, pres;
+int8_t waveform(wf_state_t *wfs, uint8_t step) {
+  int8_t res, pres;
   int16_t precision_res, truestep;
   truestep= step * wfs->step_multiplier;
   if(truestep > 255)
@@ -38,24 +38,22 @@ uint8_t waveform(wf_state_t *wfs, uint8_t step) {
     pres = res; //overflow detection
     res += wfs->offset;
     if(wfs->offset > 0 && pres > res) //overflow!
-      res=255;
+      res=INT8_MAX;
     else if(wfs->offset < 0 && pres < res) //underflow!
-      res=0;
+      res=INT8_MIN;
   }
   if (wfs->subwave != NULL) {
     if (wfs->downscale > 1)
-      res=clip_overflow((int16_t)res + waveform(wfs->subwave, (int8_t) truestep));
-    else
       res=clip_overflow((int16_t)res + waveform(wfs->subwave, (int8_t) truestep));
   }
   return res;
 }
 
-uint8_t wf_triangle(wf_state_t *wfs, uint8_t step) {
-  uint8_t *t=wfs->t;
-  if (t[0] >= 256-step)
+int8_t wf_triangle(wf_state_t *wfs, uint8_t step) {
+  int8_t *t=wfs->t;
+  if (t[0] >= INT8_MAX+1-step)
     t[1]=-1;
-  else if (t[0] < step)
+  else if (t[0] < INT8_MIN + step)
     t[1]=1;
   if(wfs->invert==1)
     t[0]-=t[1] * step;
@@ -64,8 +62,8 @@ uint8_t wf_triangle(wf_state_t *wfs, uint8_t step) {
   return(t[0]);
 }
 
-uint8_t wf_sawtooth(wf_state_t *wfs, uint8_t step) {
-  uint8_t *t=wfs->t;
+int8_t wf_sawtooth(wf_state_t *wfs, uint8_t step) {
+  int8_t *t=wfs->t;
   if(t[1]++ % 2 ==0) {
     if(wfs->invert==1)
       t[0]-= step;
@@ -75,31 +73,39 @@ uint8_t wf_sawtooth(wf_state_t *wfs, uint8_t step) {
   return(t[0]);
 }
 
-uint8_t wf_pulse(wf_state_t *wfs, uint8_t step) {
-  return((wf_triangle(wfs, step) > wfs->threshold) ? 255 : 0);
+int8_t wf_pulse(wf_state_t *wfs, uint8_t step) {
+  return((wf_triangle(wfs, step) > wfs->threshold) ? INT8_MAX : INT8_MIN);
 }
 
-uint8_t wf_square(wf_state_t *wfs, uint8_t step) {
-  wfs->threshold=128;
+int8_t wf_square(wf_state_t *wfs, uint8_t step) {
+  wfs->threshold=0;
   return wf_pulse(wfs, step);
 }
-uint8_t wf_comb(wf_state_t *wfs, uint8_t step) {
-  wfs->threshold=253;
+int8_t wf_comb(wf_state_t *wfs, uint8_t step) {
+  wfs->threshold=INT8_MAX-4;
   return wf_pulse(wfs, step);
 }
 
-const uint8_t cos_LUT[256]={
-    0,   0,   0,   0,   0,   0,   0,   0,   1,   1,   1,   1,   1,   2,   2,   2,   2,   3,   3,   3,   4,   4,   5,   5,   6,   6,   6,   7,   8,   8,   9,   9,
-   10,  10,  11,  12,  12,  13,  14,  14,  15,  16,  17,  17,  18,  19,  20,  21,  22,  23,  23,  24,  25,  26,  27,  28,  29,  30,  31,  32,  33,  34,  35,  37,
-   38,  39,  40,  41,  42,  43,  45,  46,  47,  48,  49,  51,  52,  53,  54,  56,  57,  58,  60,  61,  62,  64,  65,  66,  68,  69,  71,  72,  73,  75,  76,  78,
-   79,  81,  82,  84,  85,  87,  88,  90,  91,  93,  94,  96,  97,  99, 100, 102, 103, 105, 106, 108, 109, 111, 113, 114, 116, 117, 119, 120, 122, 124, 125, 127,
-  128, 130, 131, 133, 135, 136, 138, 139, 141, 142, 144, 146, 147, 149, 150, 152, 153, 155, 156, 158, 159, 161, 162, 164, 165, 167, 168, 170, 171, 173, 174, 176,
-  177, 179, 180, 182, 183, 184, 186, 187, 189, 190, 191, 193, 194, 195, 197, 198, 199, 201, 202, 203, 204, 206, 207, 208, 209, 210, 212, 213, 214, 215, 216, 217,
-  218, 220, 221, 222, 223, 224, 225, 226, 227, 228, 229, 230, 231, 232, 232, 233, 234, 235, 236, 237, 238, 238, 239, 240, 241, 241, 242, 243, 243, 244, 245, 245,
-  246, 246, 247, 247, 248, 249, 249, 249, 250, 250, 251, 251, 252, 252, 252, 253, 253, 253, 253, 254, 254, 254, 254, 254, 255, 255, 255, 255, 255, 255, 255, 255
+const int8_t cos_LUT[256]={
+  -127, -127, -127, -127, -127, -127, -127, -127, -126, -126, -126, -126, -126, -125, -125, -125,
+  -125, -124, -124, -124, -123, -123, -122, -122, -121, -121, -121, -120, -119, -119, -118, -118,
+  -117, -117, -116, -115, -115, -114, -113, -113, -112, -111, -110, -110, -109, -108, -107, -106,
+  -105, -104, -104, -103, -102, -101, -100,  -99,  -98,  -97,  -96,  -95,  -94,  -93,  -92,  -90,
+   -89,  -88,  -87,  -86,  -85,  -84,  -82,  -81,  -80,  -79,  -78,  -76,  -75,  -74,  -73,  -71,
+   -70,  -69,  -67,  -66,  -65,  -63,  -62,  -61,  -59,  -58,  -56,  -55,  -54,  -52,  -51,  -49,
+   -48,  -46,  -45,  -43,  -42,  -40,  -39,  -37,  -36,  -34,  -33,  -31,  -30,  -28,  -27,  -25,
+   -24,  -22,  -21,  -19,  -18,  -16,  -14,  -13,  -11,  -10,   -8,   -7,   -5,   -3,   -2,    0,
+     1,    3,    4,    6,    8,    9,   11,   12,   14,   15,   17,   19,   20,   22,   23,   25,
+    26,   28,   29,   31,   32,   34,   35,   37,   38,   40,   41,   43,   44,   46,   47,   49,
+    50,   52,   53,   55,   56,   57,   59,   60,   62,   63,   64,   66,   67,   68,   70,   71,
+    72,   74,   75,   76,   77,   79,   80,   81,   82,   83,   85,   86,   87,   88,   89,   90,
+    91,   93,   94,   95,   96,   97,   98,   99,  100,  101,  102,  103,  104,  105,  105,  106,
+   107,  108,  109,  110,  111,  111,  112,  113,  114,  114,  115,  116,  116,  117,  118,  118,
+   119,  119,  120,  120,  121,  122,  122,  122,  123,  123,  124,  124,  125,  125,  125,  126,
+   126,  126,  126,  127,  127,  127,  127,  127,  128,  128,  128,  128,  128,  128,  128,  128
 };
 
-uint8_t wf_cos(wf_state_t *wfs, uint8_t step) {
+int8_t wf_cos(wf_state_t *wfs, uint8_t step) {
   return(cos_LUT[wf_triangle(wfs, step)]);
 }
 
@@ -114,6 +120,6 @@ uint8_t badrand() {
   rng_c = (rng_c+((rng_b>>1)^rng_a));  //the right shift is to ensure that high-order bits from b can affect  
   return(rng_c);          //low order bits of other variables
 }
-uint8_t wf_random(wf_state_t *wfs, uint8_t step) {
-  return(badrand());
+int8_t wf_random(wf_state_t *wfs, uint8_t step) {
+  return((int8_t) badrand());
 }
