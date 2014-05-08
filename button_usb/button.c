@@ -22,6 +22,8 @@
  */
 
 #include <string.h>
+#include <stdarg.h>
+#include <stdio.h>
 #include <avr/io.h>
 #include <avr/pgmspace.h>
 #include <avr/interrupt.h>
@@ -29,7 +31,7 @@
 #include "shared.h"
 #include "usb_rawhid.h"
 #include "analog.h"
-
+#include "uart.h"
 #include "effects.c"
 
 #define CPU_PRESCALE(n)  (CLKPR = 0x80, CLKPR = (n))
@@ -46,6 +48,32 @@ uint8_t buffer[64];
 void apply_state(volatile state_t *s);
 int handle_rawhid_packet(state_t *buffer);
 int handle_button(void);
+
+// write a string to the uart
+#define uart_print(s) uart_print_P(PSTR(s))
+void uart_print_P(const char *str)
+{
+  char c;
+  while (1) {
+    //c = pgm_read_byte(str);
+    c=*str;
+    str++;
+    if (!c) break;
+    uart_putchar(c);
+  }
+}
+void uprintf(const char *format, ...) {
+  static char buf[1024];
+  memset(buf, 'q', 1024);
+  int16_t count=0, i=0;
+  va_list args;
+  va_start(args, format);
+  count=vsprintf(buf, format, args);
+  while(count>0) {
+    uart_putchar(buf[count--]);
+  }
+  va_end(args);
+}
 
 int main(void)
 {
@@ -101,7 +129,18 @@ int main(void)
 
   
   sei(); //resume interrupts
+
+  uart_init(115200);
+  //uart_putchar('h');
+  //uart_putchar('e');
+  //uart_putchar('l');
+  //uart_putchar('l');
+  //uart_putchar('o');
+  uprintf("\nuh buhbutton init\r\n");
+
+
   while (1) {
+    //uart_print("FOOBUAR(T)\r\n");
     handle_button();
     //if received data, do something with it
     r = usb_rawhid_recv(buffer, 0);
