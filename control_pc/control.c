@@ -203,6 +203,7 @@ int main(int argc, char *argv[]){
   int r=0, num;
   char buf[64];
   state_t *pkt;
+  debug_packet_t *dbg;
 
   while (1) {
     subscriber_check(&sub, &state);
@@ -228,12 +229,18 @@ int main(int argc, char *argv[]){
         r=0;
       }
       if (num > 0) {
-        pkt = (state_t *)&buf;
-        printf("Received packet\n");
-        print_state(pkt);
-        //memcpy(&state, pkt, sizeof(state));
-        if (pkt->button>0) {
-          handle_button_press(pkt);
+        if(strcmp(buf, "DBG")==0) {
+          dbg=(debug_packet_t *)&buf;
+          printf("Received debug packet:\n%s\n\n", dbg->str);
+        }
+        else {
+          pkt = (state_t *)&buf;
+          printf("Received packet\n");
+          print_state(pkt);
+          //memcpy(&state, pkt, sizeof(state));
+          if (pkt->button>0) {
+            handle_button_press(pkt);
+          }
         }
       }
       if(send_state==1) {
@@ -352,7 +359,7 @@ void set_state(state_t *st, int state) {
 }
 
 void print_state(state_t *state) {
-  //printf("Header: %s\n", state->header);led1_fade=255;
+  printf("Header: %s\n", state->header);
   printf("LED1: %i LED2: %i\n", state->led[0], state->led[1]);
   printf("LED1fade: %i LED2fade: %i\n", state->led_fade[0], state->led_fade[1]);
   printf("Vibrate: %i\n", state->vibrate);

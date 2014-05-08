@@ -22,6 +22,8 @@
  */
 
 #include <string.h>
+#include <stdarg.h>
+#include <stdio.h>
 #include <avr/io.h>
 #include <avr/pgmspace.h>
 #include <avr/interrupt.h>
@@ -46,6 +48,18 @@ uint8_t buffer[64];
 void apply_state(volatile state_t *s);
 int handle_rawhid_packet(state_t *buffer);
 int handle_button(void);
+
+void dbg_printf(const char *format, ...) {
+  static debug_packet_t dbg;
+  int16_t count=0, i=0;
+  strcpy(&dbg.header, "DBG");
+  //strcpy(&dbg.str, "some data yo");
+  va_list args;
+  va_start(args, format);
+  count=vsprintf(&dbg.str, format, args);
+  va_end(args);
+  usb_rawhid_send((uint8_t *)&dbg, 50);
+}
 
 int main(void)
 {
