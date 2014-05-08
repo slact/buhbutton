@@ -35,7 +35,7 @@
 
 
 typedef struct {
-  char header[5];
+  char header[10];
   uint8_t button;
   uint8_t led[2];
   uint8_t led_fade[2];
