@@ -9,3 +9,4 @@ control_pc/control
 *.lst
 *.map
 *.sym
+Gemfile.lock
