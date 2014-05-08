@@ -199,6 +199,7 @@ int main(int argc, char *argv[]){
   subscriber_init(&sub);
   first_alert=NULL;
   last_alert=NULL;
+  strcpy(state.header, "STATE");
   
   int r=0, num;
   char buf[64];

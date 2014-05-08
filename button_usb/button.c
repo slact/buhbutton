@@ -103,6 +103,7 @@ int main(void)
     }
     //if time to send output, transmit something interesting
     if (do_output==1) {
+      strcpy(&state.header, "STATE");
       usb_rawhid_send((uint8_t *)&state, 50);
       do_output=0;
     }
@@ -176,6 +177,7 @@ ISR(TIMER0_OVF_vect)
   }
 }
 
+//PWM workhorse
 ISR (TIMER1_COMPA_vect)
 {
   static uint8_t count;
