@@ -170,8 +170,8 @@ ISR(TIMER0_OVF_vect)
       if (wfs[2].threshold < 30)
         wfs[2].threshold=29;
 
-      led1_fade=waveform(&wfs[0], state.pattern_speed);
-      led2_fade=waveform(&wfs[1], state.pattern_speed);
+      led1_fade=cie1931[waveform(&wfs[0], state.pattern_speed)];
+      led2_fade=cie1931[waveform(&wfs[1], state.pattern_speed)];
       motor_fade=waveform(&wfs[2], state.pattern_speed);
 
       break;
