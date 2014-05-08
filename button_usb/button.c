@@ -235,7 +235,6 @@ int handle_button(void) {
 }
 
 void apply_state(volatile state_t *s) {
-  static uint32_t buzz_count;
   if (s->led[0]==LED_OFF)
     PORTB &= ~(1<<0);
 
