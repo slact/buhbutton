@@ -128,10 +128,12 @@ ISR(TIMER0_OVF_vect)
   static wf_state_t wfs_busy[2];
   wfs_busy[0].waveform=&wf_cos;
   wfs_busy[0].downscale=5;
-  wfs_busy[0].step_multiplier=50;
+  wfs_busy[0].step_multiplier=20;
   wfs_busy[1].waveform=&wf_cos;
+  wfs_busy[1].phase=0;
   wfs_busy[1].downscale=5;
-  wfs_busy[1].step_multiplier=50;
+  wfs_busy[1].step_multiplier=20;
+  
   
   count++;
   switch(state.pattern){

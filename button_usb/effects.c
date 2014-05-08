@@ -4,6 +4,7 @@ typedef struct wf_state_s {
   uint8_t invert:1;
   uint8_t (*waveform)(struct wf_state_s *, uint8_t);
   uint8_t offset;
+  int8_t phase;
   uint8_t downscale; // waveform / scale
   uint8_t step_multiplier; // step multiplier
   struct wf_state_s *subwave;
