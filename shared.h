@@ -35,7 +35,7 @@
 
 
 typedef struct {
-  //char header[5];
+  char header[5];
   uint8_t button;
   uint8_t led[2];
   uint8_t led_fade[2];
@@ -47,4 +47,10 @@ typedef struct {
   //char footer[5];
 } state_t;
 
+typedef struct {
+  char header[5];
+  char str[58];
+} debug_packet_t;
+
 STATIC_ASSERT(sizeof(state_t) < 64, "Packet cannot exceed 64 bytes.");
+STATIC_ASSERT(sizeof(debug_packet_t) < 64, "Packet cannot exceed 64 bytes.");
