@@ -55,10 +55,23 @@ uint8_t waveform(wf_state_t *wfs, uint8_t step) {
       res=0;
   }
   if (wfs->subwave != NULL) {
+    int32_t hires;
+    uint8_t subres=waveform(wfs->subwave, truestep);
+    uint8_t max=UINT8_MAX/(wfs->downscale > 1 ? wfs->downscale : 1);
+    uint8_t submax=UINT8_MAX/(wfs->subwave->downscale > 1 ? wfs->subwave->downscale : 1);
     //rescale that shit
-    hires=(uint32_t)res + waveform(wfs->subwave, truestep);
-    res=clip_overflow((uint64_t)(INT8_MAX*hires)/(INT8_MAX*2)); //whatever, we've got cycles to kill
-    
+    //dbg_printf("wave:%i, sub: %i", res, subres);
+    //dbg_printf("max:%i, sub: %i", max, submax);
+    hires=res + subres - submax/2;
+    //dbg_printf("sum: %i", hires);
+    hires=(hires*max)/(max+submax); //whatever, we've got cycles to kill
+    //dbg_printf("rescaled: %i", hires);
+    if(hires>255)
+      res=255;
+    else if(hires<0)
+      res=0;
+    else
+      res=hires;
   }
   return res;
 }
