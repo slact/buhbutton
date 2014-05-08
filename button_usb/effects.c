@@ -113,7 +113,7 @@ uint8_t wf_comb(wf_state_t *wfs, uint8_t step) {
   return wf_pulse(wfs, step);
 }
 
-const uint8_t cos_LUT[256]={
+const uint8_t sinusoid_LUT[256]={
     0,   0,   0,   0,   0,   0,   0,   0,   1,   1,   1,   1,   1,   2,   2,   2,   2,   3,   3,   3,   4,   4,   5,   5,   6,   6,   6,   7,   8,   8,   9,   9,
    10,  10,  11,  12,  12,  13,  14,  14,  15,  16,  17,  17,  18,  19,  20,  21,  22,  23,  23,  24,  25,  26,  27,  28,  29,  30,  31,  32,  33,  34,  35,  37,
    38,  39,  40,  41,  42,  43,  45,  46,  47,  48,  49,  51,  52,  53,  54,  56,  57,  58,  60,  61,  62,  64,  65,  66,  68,  69,  71,  72,  73,  75,  76,  78,
@@ -124,8 +124,8 @@ const uint8_t cos_LUT[256]={
   246, 246, 247, 247, 248, 249, 249, 249, 250, 250, 251, 251, 252, 252, 252, 253, 253, 253, 253, 254, 254, 254, 254, 254, 255, 255, 255, 255, 255, 255, 255, 255
 };
 
-uint8_t wf_cos(wf_state_t *wfs, uint8_t step) {
-  return(cos_LUT[wf_triangle(wfs, step)]);
+uint8_t wf_sinusoid(wf_state_t *wfs, uint8_t step) {
+  return(sinusoid_LUT[wf_triangle(wfs, step)]);
 }
 
 //X ABC Algorithm Random Number Generator for 8-Bit Devices:

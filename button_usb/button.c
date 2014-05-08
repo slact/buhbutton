@@ -144,8 +144,8 @@ ISR(TIMER0_OVF_vect)
       break;
     case  LED_PULSE:
       if(prev_pattern!=LED_PULSE) {
-        wfs[0].waveform=wf_cos;
-        wfs[1].waveform=wf_cos;
+        wfs[0].waveform=wf_sinusoid;
+        wfs[1].waveform=wf_sinusoid;
         //wfs[0].subwave=&wfs_busy[0];
         //wfs[1].subwave=&wfs_busy[1];
 
