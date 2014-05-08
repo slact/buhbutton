@@ -18,19 +18,28 @@ uint8_t clip_overflow(uint16_t n) {
     return (uint8_t) n;
 }
 
+uint8_t waveform_step(wf_state_t *wfs, uint8_t step){
+  uint16_t truestep = step * wfs->step_multiplier;
+  if (wfs->phase>0) {
+    truestep-=wfs->step_multiplier;
+    wfs->phase-=wfs->step_multiplier;
+  }
+  return clip_overflow(truestep);
+}
+
 uint8_t waveform(wf_state_t *wfs, uint8_t step) {
   uint8_t res, pres;
-  int16_t precision_res, truestep;
-  truestep= step * wfs->step_multiplier;
-  if(truestep > 255)
-    truestep=255;
+  int32_t max, hires;
+  uint8_t truestep;
   if(wfs->step_multiplier==0)
     wfs->step_multiplier=1;
-  
+
+  truestep=waveform_step(wfs, step);
+
   if(wfs->waveform == NULL)
     return 0; //bad!
 
-  res=wfs->waveform(wfs, (uint8_t) truestep);
+  res=wfs->waveform(wfs, truestep);
   if (wfs->downscale > 1) {
     res=clip_overflow(res/wfs->downscale);
   }
@@ -43,10 +52,10 @@ uint8_t waveform(wf_state_t *wfs, uint8_t step) {
       res=0;
   }
   if (wfs->subwave != NULL) {
-    if (wfs->downscale > 1)
-      res=clip_overflow((int16_t)res + waveform(wfs->subwave, (int8_t) truestep));
-    else
-      res=clip_overflow((int16_t)res + waveform(wfs->subwave, (int8_t) truestep));
+    //rescale that shit
+    hires=(uint32_t)res + waveform(wfs->subwave, truestep);
+    res=clip_overflow((uint64_t)(INT8_MAX*hires)/(INT8_MAX*2)); //whatever, we've got cycles to kill
+    
   }
   return res;
 }
