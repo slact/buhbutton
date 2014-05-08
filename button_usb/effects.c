@@ -1,3 +1,5 @@
+#include "debug.h"
+
 typedef struct wf_state_s {
   uint8_t t[2];
   uint8_t threshold;

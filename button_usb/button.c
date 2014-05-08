@@ -33,7 +33,7 @@
 #include "analog.h"
 
 #include "effects.c"
-
+#include "debug.h"
 #define CPU_PRESCALE(n)  (CLKPR = 0x80, CLKPR = (n))
 
 volatile uint8_t do_output=0;
@@ -49,15 +49,11 @@ void apply_state(volatile state_t *s);
 int handle_rawhid_packet(state_t *buffer);
 int handle_button(void);
 
-void dbg_printf(const char *format, ...) {
-  static debug_packet_t dbg;
-  int16_t count=0, i=0;
+
+void dbg_print(char *str) {
+  debug_packet_t dbg;
   strcpy(&dbg.header, "DBG");
-  //strcpy(&dbg.str, "some data yo");
-  va_list args;
-  va_start(args, format);
-  count=vsprintf(&dbg.str, format, args);
-  va_end(args);
+  memcpy(&dbg.str, str, 58);
   usb_rawhid_send((uint8_t *)&dbg, 50);
 }
 
